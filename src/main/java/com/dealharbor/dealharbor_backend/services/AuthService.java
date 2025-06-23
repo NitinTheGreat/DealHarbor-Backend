@@ -8,6 +8,8 @@ import com.dealharbor.dealharbor_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
+
+    // Public methods (no authentication required)
 
     @Transactional
     public void register(RegisterRequest req) {
@@ -44,7 +48,6 @@ public class AuthService {
                 .build();
         userRepository.save(user);
 
-        // Generate and send OTP
         generateAndSendOtp(req.getEmail());
     }
 
@@ -57,7 +60,6 @@ public class AuthService {
             throw new RuntimeException("User is already verified");
         }
 
-        // Generate and send new OTP
         generateAndSendOtp(req.getEmail());
     }
 
@@ -90,12 +92,10 @@ public class AuthService {
             throw new RuntimeException("Account is locked");
         }
 
-        // Authenticate user
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
         );
 
-        // Generate tokens
         String accessToken = jwtTokenProvider.createAccessToken(user);
         String refreshToken = createRefreshToken(user);
 
@@ -118,7 +118,6 @@ public class AuthService {
         String newAccessToken = jwtTokenProvider.createAccessToken(user);
         String newRefreshToken = createRefreshToken(user);
 
-        // Delete old refresh token
         refreshTokenRepository.delete(token);
 
         return new LoginResponse(newAccessToken, newRefreshToken);
@@ -133,16 +132,13 @@ public class AuthService {
             throw new RuntimeException("Account not verified");
         }
 
-        // Generate and send OTP for password reset
         String otp = generateOtp();
-        
-        // Delete existing OTP tokens for this email
         otpTokenRepository.deleteByEmail(req.getEmail());
         
         OtpToken token = OtpToken.builder()
                 .email(req.getEmail())
                 .otp(otp)
-                .expiresAt(Instant.now().plusSeconds(15 * 60)) // 15 minutes
+                .expiresAt(Instant.now().plusSeconds(15 * 60))
                 .build();
         otpTokenRepository.save(token);
         
@@ -165,21 +161,94 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         userRepository.save(user);
         
-        // Delete OTP token and all refresh tokens for this user
         otpTokenRepository.deleteByEmail(req.getEmail());
         refreshTokenRepository.deleteByUserId(user.getId());
     }
 
+    public CheckEmailResponse checkEmail(CheckEmailRequest req) {
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
+        if (user == null) {
+            return new CheckEmailResponse(false, false);
+        }
+        return new CheckEmailResponse(true, user.isEnabled());
+    }
+
+    // Protected methods (authentication required)
+
+    public UserProfileResponse getCurrentUser(Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        return new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                user.isEnabled(),
+                user.isLocked(),
+                user.getCreatedAt()
+        );
+    }
+
+    @Transactional
+    public void logout(String refreshToken) {
+        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+        refreshTokenRepository.delete(token);
+    }
+
+    @Transactional
+    public void logoutAll(Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        refreshTokenRepository.deleteByUserId(user.getId());
+    }
+
+    @Transactional
+    public void changePassword(ChangePasswordRequest req, Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        userRepository.save(user);
+        
+        // Logout from all devices for security
+        refreshTokenRepository.deleteByUserId(user.getId());
+    }
+
+    @Transactional
+    public UserProfileResponse updateProfile(UpdateProfileRequest req, Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        user.setName(req.getName());
+        user = userRepository.save(user);
+        
+        return new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                user.isEnabled(),
+                user.isLocked(),
+                user.getCreatedAt()
+        );
+    }
+
+    // Helper methods
+
+    private User getUserFromAuthentication(Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        return userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
     private void generateAndSendOtp(String email) {
         String otp = generateOtp();
-        
-        // Delete existing OTP tokens for this email
         otpTokenRepository.deleteByEmail(email);
         
         OtpToken token = OtpToken.builder()
                 .email(email)
                 .otp(otp)
-                .expiresAt(Instant.now().plusSeconds(15 * 60)) // 15 minutes
+                .expiresAt(Instant.now().plusSeconds(15 * 60))
                 .build();
         otpTokenRepository.save(token);
         
@@ -188,7 +257,6 @@ public class AuthService {
     }
 
     private String createRefreshToken(User user) {
-        // Delete existing refresh tokens for this user
         refreshTokenRepository.deleteByUserId(user.getId());
         
         String tokenValue = UUID.randomUUID().toString();
