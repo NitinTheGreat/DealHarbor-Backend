@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class AuthService {
     private final EmailService emailService;
     private final SecurityService securityService;
+    private final StudentVerificationService studentVerificationService;
     private final UserRepository userRepository;
     private final OtpTokenRepository otpTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -56,7 +57,11 @@ public class AuthService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
-        userRepository.save(user);
+        
+        user = userRepository.save(user);
+        
+        // Auto-verify student if they registered with student email
+        studentVerificationService.autoVerifyStudentDuringRegistration(user);
 
         generateAndSendOtp(req.getEmail());
     }
@@ -98,6 +103,11 @@ public class AuthService {
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         otpTokenRepository.deleteByEmail(req.getEmail());
+        
+        // Send welcome email if student was auto-verified
+        if (user.isVerifiedStudent()) {
+            emailService.sendStudentVerificationSuccess(user.getEmail(), user.getName());
+        }
     }
 
     public LoginResponse login(LoginRequest req) {

@@ -3,9 +3,10 @@ package com.dealharbor.dealharbor_backend.dto;
 import lombok.Data;
 
 @Data
-public class StudentVerificationRequest {
-    private String studentEmail; // Must be VIT domain
-    private String universityId; // Optional - Student ID
+public class StudentEmailOtpVerifyRequest {
+    private String studentEmail;
+    private String otp;
+    private String universityId; // Optional
     private Integer graduationYear; // Optional
     private String department; // Optional
 }
