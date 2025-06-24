@@ -39,7 +39,7 @@ public class DatabaseInitService implements CommandLineRunner {
                     .build();
             
             userRepository.save(testUser);
-            System.out.println("✅ Test user created: test@dealharbor.com / password123");
+            logger.info("✅ Test user created: test@dealharbor.com / password123");
         }
     }
 }
