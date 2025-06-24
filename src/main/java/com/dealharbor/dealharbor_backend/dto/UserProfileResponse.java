@@ -12,8 +12,13 @@ public class UserProfileResponse {
     private String id;
     private String email;
     private String name;
+    private String bio;
+    private String phoneNumber;
+    private String profilePhotoUrl;
     private UserRole role;
     private boolean enabled;
     private boolean locked;
+    private String provider;
     private Instant createdAt;
+    private Instant lastLoginAt;
 }

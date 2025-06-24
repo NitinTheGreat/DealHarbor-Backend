@@ -6,19 +6,19 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
 
-    private final Key key;
-    private final long accessTokenValidity; // in ms
+    private final SecretKey key;
+    private final long accessTokenValidity;
 
     public JwtTokenProvider(
-        @Value("${jwt.secret:change-this-secret}") String secret,
-        @Value("${jwt.access-token-validity-ms:900000}") long accessTokenValidity // 15 min default
+            @Value("${jwt.secret:TheGreatJwtSecretKey4351builtfordealharborhelloworldThegreat}") String secret,
+            @Value("${jwt.access-token-validity-ms:900000}") long accessTokenValidity
     ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.accessTokenValidity = accessTokenValidity;
@@ -27,11 +27,12 @@ public class JwtTokenProvider {
     public String createAccessToken(User user) {
         Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject(user.getId())
+                .subject(user.getId())
                 .claim("role", user.getRole().name())
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(now.plusMillis(accessTokenValidity)))
-                .signWith(key)
+                .claim("email", user.getEmail())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusMillis(accessTokenValidity)))
+                .signWith(key, Jwts.SIG.HS384)
                 .compact();
     }
 
@@ -50,6 +51,10 @@ public class JwtTokenProvider {
     }
 
     private Claims parseClaims(String token) {
-        return Jwts.parser().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

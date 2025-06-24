@@ -2,10 +2,13 @@ package com.dealharbor.dealharbor_backend.controllers;
 
 import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.services.AuthService;
+import com.dealharbor.dealharbor_backend.services.SecurityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "*")
 public class AuthController {
     private final AuthService authService;
+    private final SecurityService securityService;
 
     // Public endpoints (no authentication required)
     
@@ -94,5 +98,49 @@ public class AuthController {
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> updateProfile(@RequestBody UpdateProfileRequest req, Authentication authentication) {
         return ResponseEntity.ok(authService.updateProfile(req, authentication));
+    }
+
+    @PutMapping("/profile-photo")
+    public ResponseEntity<UserProfileResponse> updateProfilePhoto(@RequestBody String photoUrl, Authentication authentication) {
+        return ResponseEntity.ok(authService.updateProfilePhoto(photoUrl, authentication));
+    }
+
+    @GetMapping("/sessions")
+    public ResponseEntity<List<UserSessionResponse>> getActiveSessions(Authentication authentication) {
+        return ResponseEntity.ok(authService.getActiveSessions(authentication));
+    }
+
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<?> terminateSession(@PathVariable String sessionId, Authentication authentication) {
+        authService.terminateSession(sessionId, authentication);
+        return ResponseEntity.ok("Session terminated successfully.");
+    }
+
+    @GetMapping("/security-events")
+    public ResponseEntity<List<SecurityEventResponse>> getSecurityEvents(Authentication authentication) {
+        return ResponseEntity.ok(authService.getSecurityEvents(authentication));
+    }
+
+    @GetMapping("/account-stats")
+    public ResponseEntity<AccountStatsResponse> getAccountStats(Authentication authentication) {
+        return ResponseEntity.ok(authService.getAccountStats(authentication));
+    }
+
+    @PostMapping("/change-email")
+    public ResponseEntity<?> changeEmail(@RequestBody ChangeEmailRequest req, Authentication authentication) {
+        authService.changeEmail(req, authentication);
+        return ResponseEntity.ok("Email change OTP sent to new email address.");
+    }
+
+    @PostMapping("/verify-email-change")
+    public ResponseEntity<?> verifyEmailChange(@RequestBody OtpVerifyRequest req, Authentication authentication) {
+        authService.verifyEmailChange(req, authentication);
+        return ResponseEntity.ok("Email changed successfully.");
+    }
+
+    @DeleteMapping("/account")
+    public ResponseEntity<?> deleteAccount(@RequestBody DeleteAccountRequest req, Authentication authentication) {
+        authService.deleteAccount(req, authentication);
+        return ResponseEntity.ok("Account deleted successfully.");
     }
 }

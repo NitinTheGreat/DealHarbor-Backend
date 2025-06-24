@@ -1,6 +1,8 @@
 package com.dealharbor.dealharbor_backend.config;
 
 import com.dealharbor.dealharbor_backend.security.JwtAuthFilter;
+import com.dealharbor.dealharbor_backend.security.OAuth2AuthenticationSuccessHandler;
+import com.dealharbor.dealharbor_backend.services.CustomOAuth2UserService;
 import com.dealharbor.dealharbor_backend.services.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -27,6 +29,8 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -39,20 +43,28 @@ public class SecurityConfig {
                     "/",
                     "/health",
                     "/api/test/**",
-                    // "/api/auth/register",
-                    // "/api/auth/verify",
-                    // "/api/auth/resend-otp",
-                    // "/api/auth/login",
-                    // "/api/auth/refresh",
-                    // "/api/auth/forgot-password",
-                    // "/api/auth/reset-password",
-                    // "/api/auth/check-email",
-                    "/api/auth/**",
+                    "/api/auth/register",
+                    "/api/auth/verify",
+                    "/api/auth/resend-otp",
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password",
+                    "/api/auth/check-email",
+                    "/api/auth/test",
+                    "/api/images/**",
+                    "/oauth2/**",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/error"
                 ).permitAll()
                 .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(customOAuth2UserService)
+                )
+                .successHandler(oAuth2AuthenticationSuccessHandler)
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
