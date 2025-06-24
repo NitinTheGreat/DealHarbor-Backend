@@ -236,7 +236,28 @@ public class AuthService {
                 user.isLocked(),
                 user.getProvider(),
                 user.getCreatedAt(),
-                user.getLastLoginAt()
+                user.getLastLoginAt(),
+                // Seller Badge System Fields
+                user.getSellerBadge(),
+                user.getSellerRating(),
+                user.getBuyerRating(),
+                user.getTotalSales(),
+                user.getTotalPurchases(),
+                user.getTotalListings(),
+                user.getActiveListings(),
+                user.getTotalRevenue(),
+                user.getResponseRate(),
+                user.getPositiveReviews(),
+                user.getNegativeReviews(),
+                user.getFirstSaleAt(),
+                // University fields
+                user.getUniversityId(),
+                user.getGraduationYear(),
+                user.getDepartment(),
+                user.isVerifiedStudent(),
+                // Computed fields
+                user.getOverallRating(),
+                user.getSellerSuccessRate()
         );
     }
 
@@ -302,7 +323,28 @@ public class AuthService {
                 user.isLocked(),
                 user.getProvider(),
                 user.getCreatedAt(),
-                user.getLastLoginAt()
+                user.getLastLoginAt(),
+                // Seller Badge System Fields
+                user.getSellerBadge(),
+                user.getSellerRating(),
+                user.getBuyerRating(),
+                user.getTotalSales(),
+                user.getTotalPurchases(),
+                user.getTotalListings(),
+                user.getActiveListings(),
+                user.getTotalRevenue(),
+                user.getResponseRate(),
+                user.getPositiveReviews(),
+                user.getNegativeReviews(),
+                user.getFirstSaleAt(),
+                // University fields
+                user.getUniversityId(),
+                user.getGraduationYear(),
+                user.getDepartment(),
+                user.isVerifiedStudent(),
+                // Computed fields
+                user.getOverallRating(),
+                user.getSellerSuccessRate()
         );
     }
 
@@ -325,7 +367,28 @@ public class AuthService {
                 user.isLocked(),
                 user.getProvider(),
                 user.getCreatedAt(),
-                user.getLastLoginAt()
+                user.getLastLoginAt(),
+                // Seller Badge System Fields
+                user.getSellerBadge(),
+                user.getSellerRating(),
+                user.getBuyerRating(),
+                user.getTotalSales(),
+                user.getTotalPurchases(),
+                user.getTotalListings(),
+                user.getActiveListings(),
+                user.getTotalRevenue(),
+                user.getResponseRate(),
+                user.getPositiveReviews(),
+                user.getNegativeReviews(),
+                user.getFirstSaleAt(),
+                // University fields
+                user.getUniversityId(),
+                user.getGraduationYear(),
+                user.getDepartment(),
+                user.isVerifiedStudent(),
+                // Computed fields
+                user.getOverallRating(),
+                user.getSellerSuccessRate()
         );
     }
 
