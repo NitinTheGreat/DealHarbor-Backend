@@ -1,8 +1,10 @@
 package com.dealharbor.dealharbor_backend.entities;
 
 import com.dealharbor.dealharbor_backend.enums.UserRole;
+import com.dealharbor.dealharbor_backend.enums.SellerBadge;
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -45,6 +47,22 @@ public class User {
     @Column(length = 20)
     private String phoneNumber;
 
+    // University information (Updated for simplified verification)
+    @Column(length = 255, unique = true)
+    private String universityEmail; // VIT student email
+    
+    @Column(length = 100)
+    private String universityId; // Student/Staff ID
+    
+    private Integer graduationYear;
+    
+    @Column(length = 100)
+    private String department;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isVerifiedStudent = false;
+
     // OAuth fields
     @Column(length = 100)
     private String googleId;
@@ -55,6 +73,63 @@ public class User {
     @Column(length = 20, nullable = false)
     @Builder.Default
     private String provider = "LOCAL";
+
+    // Seller Performance & Badge System
+    @Column(precision = 3, scale = 2)
+    @Builder.Default
+    private BigDecimal sellerRating = BigDecimal.valueOf(0.00);
+    
+    @Column(precision = 3, scale = 2)
+    @Builder.Default
+    private BigDecimal buyerRating = BigDecimal.valueOf(0.00);
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer totalSales = 0;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer totalPurchases = 0;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer totalListings = 0;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer activeListings = 0;
+    
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private SellerBadge sellerBadge = SellerBadge.NEW_SELLER;
+    
+    private Instant firstSaleAt;
+    
+    @Column(precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal totalRevenue = BigDecimal.valueOf(0.00);
+    
+    @Column(precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal responseRate = BigDecimal.valueOf(0.00);
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer positiveReviews = 0;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer negativeReviews = 0;
+
+    // Account status
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isBanned = false;
+    
+    private Instant bannedUntil;
+    
+    @Column(length = 500)
+    private String banReason;
 
     // Security fields
     @Column(nullable = false)
@@ -100,10 +175,30 @@ public class User {
         if (provider == null) {
             provider = "LOCAL";
         }
+        if (sellerBadge == null) {
+            sellerBadge = SellerBadge.NEW_SELLER;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    // Helper method to calculate seller success rate
+    public BigDecimal getSellerSuccessRate() {
+        if (totalListings == 0) return BigDecimal.ZERO;
+        return BigDecimal.valueOf(totalSales.doubleValue() / totalListings.doubleValue() * 100)
+                .setScale(2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    // Helper method to get overall rating (combination of seller and buyer)
+    public BigDecimal getOverallRating() {
+        if (sellerRating.equals(BigDecimal.ZERO) && buyerRating.equals(BigDecimal.ZERO)) {
+            return BigDecimal.ZERO;
+        }
+        if (sellerRating.equals(BigDecimal.ZERO)) return buyerRating;
+        if (buyerRating.equals(BigDecimal.ZERO)) return sellerRating;
+        return sellerRating.add(buyerRating).divide(BigDecimal.valueOf(2), 2, BigDecimal.ROUND_HALF_UP);
     }
 }

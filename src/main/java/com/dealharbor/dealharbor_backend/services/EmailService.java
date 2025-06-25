@@ -28,6 +28,16 @@ public class EmailService {
         sendMail(to, subject, text);
     }
 
+    public void sendStudentVerificationOtp(String to, String otp, String userName) {
+        String subject = "DealHarbor Student Verification OTP";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Your OTP for verifying your VIT student email on DealHarbor is: " + otp + "\n\n" +
+                     "This OTP will expire in 15 minutes.\n\n" +
+                     "Once verified, you'll get access to student-only features and your listings will show a verified student badge.\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
     public void sendSecurityAlert(String to, String alertType, String message) {
         String subject = "DealHarbor Security Alert: " + alertType;
         String text = "Security Alert for your DealHarbor account:\n\n" + message + 
@@ -51,6 +61,19 @@ public class EmailService {
                      "Your DealHarbor account has been successfully deleted.\n\n" +
                      "If you didn't request this deletion, please contact support immediately.\n\n" +
                      "Thank you for using DealHarbor!\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendStudentVerificationSuccess(String to, String name) {
+        String subject = "Welcome to DealHarbor - Student Verification Complete!";
+        String text = "Hi " + name + ",\n\n" +
+                     "Congratulations! Your VIT student email has been successfully verified.\n\n" +
+                     "You now have access to:\n" +
+                     "• Verified student badge on your profile\n" +
+                     "• Student-only marketplace features\n" +
+                     "• Enhanced trust and credibility\n\n" +
+                     "Start exploring the marketplace and connect with fellow VIT students!\n\n" +
                      "Best regards,\nDealHarbor Team";
         sendMail(to, subject, text);
     }
