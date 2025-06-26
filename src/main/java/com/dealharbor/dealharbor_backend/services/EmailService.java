@@ -38,6 +38,18 @@ public class EmailService {
         sendMail(to, subject, text);
     }
 
+    public void sendNotificationEmail(String to, String title, String message, String actionUrl) {
+        String subject = "DealHarbor - " + title;
+        String text = "Hi,\n\n" + message + "\n\n";
+        
+        if (actionUrl != null && !actionUrl.isEmpty()) {
+            text += "Click here to view: " + actionUrl + "\n\n";
+        }
+        
+        text += "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
     public void sendSecurityAlert(String to, String alertType, String message) {
         String subject = "DealHarbor Security Alert: " + alertType;
         String text = "Security Alert for your DealHarbor account:\n\n" + message + 
