@@ -2684,163 +2684,179 @@ curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8080/api/notifications?page=0&size=10"
 ```
 
+## **Admin Endpoints Available:**
+
+- `GET /api/admin/dashboard` - Admin dashboard with stats
+- `GET /api/admin/products` - All products (any status)
+- `PUT /api/admin/products/{id}` - Update any product
+- `GET /api/admin/users` - All users with filters
+- `PUT /api/admin/users/{id}` - Update any user
+- `GET /api/admin/products/search?keyword=` - Search products
+- `GET /api/admin/users/search?keyword=` - Search users
+
 # Current project structure
 
-dealharbor-backend/
-├── pom.xml
-├── src/
-│   └── main/
-│       ├── java/com/dealharbor/dealharbor_backend/
-│       │   ├── DealharborBackendApplication.java
-│       │   │
-│       │   ├── config/
-│       │   │   ├── SecurityConfig.java
-│       │   │   └── GlobalExceptionHandler.java
-│       │   │
-│       │   ├── controllers/
-│       │   │   ├── AuthController.java
-│       │   │   ├── CategoryController.java
-│       │   │   ├── FavoriteController.java
-│       │   │   ├── ImageController.java
-│       │   │   ├── MessagingController.java
-│       │   │   ├── NotificationController.java
-│       │   │   ├── OrderController.java
-│       │   │   ├── ProductController.java
-│       │   │   ├── ReviewController.java
-│       │   │   ├── RootController.java
-│       │   │   ├── StudentVerificationController.java
-│       │   │   └── TestController.java
-│       │   │
-│       │   ├── dto/
-│       │   │   ├── AccountStatsResponse.java
-│       │   │   ├── AdminVerifyStudentRequest.java
-│       │   │   ├── CategoryResponse.java
-│       │   │   ├── ChangeEmailRequest.java
-│       │   │   ├── ChangePasswordRequest.java
-│       │   │   ├── CheckEmailRequest.java
-│       │   │   ├── CheckEmailResponse.java
-│       │   │   ├── ConversationResponse.java
-│       │   │   ├── DeleteAccountRequest.java
-│       │   │   ├── FavoriteResponse.java
-│       │   │   ├── ForgotPasswordRequest.java
-│       │   │   ├── GitHubOAuth2UserInfo.java
-│       │   │   ├── GoogleOAuth2UserInfo.java
-│       │   │   ├── LoginRequest.java
-│       │   │   ├── LoginResponse.java
-│       │   │   ├── MessageRequest.java
-│       │   │   ├── MessageResponse.java
-│       │   │   ├── NotificationResponse.java
-│       │   │   ├── OAuth2UserInfo.java
-│       │   │   ├── OrderCreateRequest.java
-│       │   │   ├── OrderResponse.java
-│       │   │   ├── OrderUpdateRequest.java
-│       │   │   ├── OtpVerifyRequest.java
-│       │   │   ├── PagedResponse.java
-│       │   │   ├── ProductCreateRequest.java
-│       │   │   ├── ProductImageResponse.java
-│       │   │   ├── ProductResponse.java
-│       │   │   ├── ProductReviewRequest.java
-│       │   │   ├── ProductReviewResponse.java
-│       │   │   ├── ProductSearchRequest.java
-│       │   │   ├── ProductUpdateRequest.java
-│       │   │   ├── RegisterRequest.java
-│       │   │   ├── ResendOtpRequest.java
-│       │   │   ├── ResetPasswordRequest.java
-│       │   │   ├── SecurityEventResponse.java
-│       │   │   ├── StudentEmailOtpRequest.java
-│       │   │   ├── StudentEmailOtpVerifyRequest.java
-│       │   │   ├── StudentVerificationRequest.java
-│       │   │   ├── UpdateProfileRequest.java
-│       │   │   ├── UserProfileResponse.java
-│       │   │   ├── UserReviewRequest.java
-│       │   │   ├── UserReviewResponse.java
-│       │   │   └── UserSessionResponse.java
-│       │   │
-│       │   ├── entities/
-│       │   │   ├── AdminAction.java
-│       │   │   ├── Category.java
-│       │   │   ├── Conversation.java
-│       │   │   ├── Favorite.java
-│       │   │   ├── LoginAttempt.java
-│       │   │   ├── Message.java
-│       │   │   ├── Notification.java
-│       │   │   ├── Order.java
-│       │   │   ├── OtpToken.java
-│       │   │   ├── Product.java
-│       │   │   ├── ProductImage.java
-│       │   │   ├── ProductReview.java
-│       │   │   ├── RefreshToken.java
-│       │   │   ├── SecurityEvent.java
-│       │   │   ├── StudentOtpToken.java
-│       │   │   ├── User.java
-│       │   │   ├── UserReview.java
-│       │   │   └── UserSession.java
-│       │   │
-│       │   ├── enums/
-│       │   │   ├── DeliveryMethod.java
-│       │   │   ├── MessageType.java
-│       │   │   ├── NotificationType.java
-│       │   │   ├── OrderStatus.java
-│       │   │   ├── ProductCondition.java
-│       │   │   ├── ProductStatus.java
-│       │   │   ├── ReviewType.java
-│       │   │   ├── SellerBadge.java
-│       │   │   └── UserRole.java
-│       │   │
-│       │   ├── repositories/
-│       │   │   ├── AdminActionRepository.java
-│       │   │   ├── CategoryRepository.java
-│       │   │   ├── ConversationRepository.java
-│       │   │   ├── FavoriteRepository.java
-│       │   │   ├── LoginAttemptRepository.java
-│       │   │   ├── MessageRepository.java
-│       │   │   ├── NotificationRepository.java
-│       │   │   ├── OrderRepository.java
-│       │   │   ├── OtpTokenRepository.java
-│       │   │   ├── ProductImageRepository.java
-│       │   │   ├── ProductRepository.java
-│       │   │   ├── ProductReviewRepository.java
-│       │   │   ├── RefreshTokenRepository.java
-│       │   │   ├── SecurityEventRepository.java
-│       │   │   ├── StudentOtpTokenRepository.java
-│       │   │   ├── UserRepository.java
-│       │   │   ├── UserReviewRepository.java
-│       │   │   └── UserSessionRepository.java
-│       │   │
-│       │   ├── security/
-│       │   │   ├── JwtAuthFilter.java
-│       │   │   ├── JwtTokenProvider.java
-│       │   │   ├── OAuth2AuthenticationSuccessHandler.java
-│       │   │   ├── OAuth2UserInfoFactory.java
-│       │   │   └── UserPrincipal.java
-│       │   │
-│       │   └── services/
-│       │       ├── AuthService.java
-│       │       ├── CategoryService.java
-│       │       ├── CustomOAuth2UserService.java
-│       │       ├── DatabaseInitService.java
-│       │       ├── EmailService.java
-│       │       ├── FavoriteService.java
-│       │       ├── MessagingService.java
-│       │       ├── NotificationService.java
-│       │       ├── OrderService.java
-│       │       ├── ProductService.java
-│       │       ├── ReviewService.java
-│       │       ├── SecurityService.java
-│       │       ├── StudentVerificationService.java
-│       │       └── UserDetailsServiceImpl.java
-│       │
-│       └── resources/
-│           ├── application-local.properties
-│           └── static/
-│               └── default-avatar.png
+src/main/java/com/dealharbor/dealharbor_backend/
+├── 📁 config/
+│   ├── GlobalExceptionHandler.java
+│   └── SecurityConfig.java
 │
-├── scripts/
-│   └── test-api-endpoints.sh
+├── 📁 controllers/
+│   ├── AdminController.java              🆕 NEW - Admin management
+│   ├── AuthController.java
+│   ├── CategoryController.java
+│   ├── FavoriteController.java
+│   ├── ImageController.java
+│   ├── MessagingController.java
+│   ├── NotificationController.java
+│   ├── OrderController.java
+│   ├── ProductController.java
+│   ├── ReviewController.java
+│   ├── RootController.java
+│   ├── StudentVerificationController.java
+│   └── TestController.java
 │
-└── database-migrations/
-    ├── database-migration.sql
-    ├── database-complete-migration.sql
-    ├── database-update-migration.sql
-    ├── database-student-verification-migration.sql
-    └── database-complete-features-migration.sql
+├── 📁 dto/
+│   ├── AccountStatsResponse.java
+│   ├── AdminDashboardResponse.java       🆕 NEW - Admin dashboard data
+│   ├── AdminProductActionRequest.java    🆕 NEW - Admin product actions
+│   ├── AdminUserActionRequest.java       🆕 NEW - Admin user actions
+│   ├── AdminVerifyStudentRequest.java
+│   ├── CategoryResponse.java
+│   ├── ChangeEmailRequest.java
+│   ├── ChangePasswordRequest.java
+│   ├── CheckEmailRequest.java
+│   ├── CheckEmailResponse.java
+│   ├── ConversationResponse.java
+│   ├── DeleteAccountRequest.java
+│   ├── FavoriteResponse.java
+│   ├── ForgotPasswordRequest.java
+│   ├── GitHubOAuth2UserInfo.java
+│   ├── GoogleOAuth2UserInfo.java
+│   ├── LoginRequest.java
+│   ├── LoginResponse.java
+│   ├── MessageRequest.java
+│   ├── MessageResponse.java
+│   ├── NotificationResponse.java
+│   ├── OAuth2UserInfo.java
+│   ├── OrderCreateRequest.java
+│   ├── OrderResponse.java
+│   ├── OrderUpdateRequest.java
+│   ├── OtpVerifyRequest.java
+│   ├── PagedResponse.java
+│   ├── ProductCreateRequest.java
+│   ├── ProductImageResponse.java
+│   ├── ProductResponse.java
+│   ├── ProductReviewRequest.java
+│   ├── ProductReviewResponse.java
+│   ├── ProductSearchRequest.java
+│   ├── ProductUpdateRequest.java
+│   ├── RegisterRequest.java
+│   ├── ResendOtpRequest.java
+│   ├── ResetPasswordRequest.java
+│   ├── SecurityEventResponse.java
+│   ├── StudentEmailOtpRequest.java
+│   ├── StudentEmailOtpVerifyRequest.java
+│   ├── StudentVerificationRequest.java
+│   ├── UpdateProfileRequest.java
+│   ├── UserProfileResponse.java
+│   ├── UserReviewRequest.java
+│   ├── UserReviewResponse.java
+│   └── UserSessionResponse.java
+│
+├── 📁 entities/
+│   ├── AdminAction.java
+│   ├── Category.java
+│   ├── Conversation.java
+│   ├── Favorite.java
+│   ├── LoginAttempt.java
+│   ├── Message.java
+│   ├── Notification.java
+│   ├── Order.java
+│   ├── OtpToken.java
+│   ├── Product.java
+│   ├── ProductImage.java
+│   ├── ProductReview.java
+│   ├── RefreshToken.java
+│   ├── SecurityEvent.java
+│   ├── StudentOtpToken.java
+│   ├── User.java
+│   ├── UserReview.java
+│   └── UserSession.java
+│
+├── 📁 enums/
+│   ├── AuthProvider.java
+│   ├── DeliveryMethod.java
+│   ├── MessageType.java
+│   ├── NotificationType.java
+│   ├── OrderStatus.java
+│   ├── ProductCondition.java
+│   ├── ProductStatus.java
+│   ├── ReviewType.java
+│   ├── Role.java
+│   ├── SellerBadge.java
+│   └── UserStatus.java
+│
+├── 📁 repositories/
+│   ├── AdminActionRepository.java
+│   ├── CategoryRepository.java
+│   ├── ConversationRepository.java
+│   ├── FavoriteRepository.java
+│   ├── LoginAttemptRepository.java
+│   ├── MessageRepository.java
+│   ├── NotificationRepository.java
+│   ├── OrderRepository.java            ✅ UPDATED - Admin queries
+│   ├── OtpTokenRepository.java
+│   ├── ProductImageRepository.java
+│   ├── ProductRepository.java          ✅ UPDATED - Admin queries
+│   ├── ProductReviewRepository.java    ✅ UPDATED - Admin queries
+│   ├── RefreshTokenRepository.java
+│   ├── SecurityEventRepository.java
+│   ├── StudentOtpTokenRepository.java
+│   ├── UserRepository.java             ✅ UPDATED - Admin queries
+│   ├── UserReviewRepository.java       ✅ UPDATED - Admin queries
+│   └── UserSessionRepository.java
+│
+├── 📁 security/
+│   ├── JwtAuthFilter.java
+│   ├── JwtTokenProvider.java
+│   ├── OAuth2AuthenticationSuccessHandler.java
+│   ├── OAuth2UserInfoFactory.java
+│   └── UserPrincipal.java
+│
+├── 📁 services/
+│   ├── AdminService.java               🆕 NEW - Admin business logic
+│   ├── AuthService.java
+│   ├── CategoryInitService.java        🆕 NEW - Initialize categories
+│   ├── CategoryService.java
+│   ├── CustomOAuth2UserService.java
+│   ├── DatabaseInitService.java
+│   ├── EmailService.java               ✅ UPDATED - Admin notifications
+│   ├── FavoriteService.java
+│   ├── MessagingService.java
+│   ├── NotificationService.java
+│   ├── OrderService.java
+│   ├── ProductService.java             ✅ UPDATED - Seller ID attachment
+│   ├── ReviewService.java
+│   ├── SecurityService.java
+│   ├── StudentVerificationService.java
+│   └── UserDetailsServiceImpl.java
+│
+└── DealharbourBackendApplication.java
+
+📁 src/main/resources/
+├── application.properties
+├── application-local.properties
+└── 📁 static/
+    └── default-avatar.png
+
+📁 database-migrations/
+├── database-complete-features-migration.sql
+├── database-complete-migration.sql
+├── database-final-migration.sql         🆕 NEW - Final schema
+├── database-migration.sql
+├── database-student-verification-migration.sql
+└── database-update-migration.sql
+
+📁 scripts/
+└── test-api-endpoints.sh
