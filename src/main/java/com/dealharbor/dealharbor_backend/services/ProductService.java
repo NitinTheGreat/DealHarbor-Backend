@@ -31,8 +31,10 @@ public class ProductService {
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
         User seller = getUserFromAuthentication(authentication);
         
+        // Find category or default to "others" if not found
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElse(categoryRepository.findById("others")
+                        .orElseThrow(() -> new RuntimeException("Default 'others' category not found. Please run category initialization.")));
 
         Product product = Product.builder()
                 .title(request.getTitle())
@@ -44,11 +46,11 @@ public class ProductService {
                 .brand(request.getBrand())
                 .model(request.getModel())
                 .category(category)
-                .seller(seller)
+                .seller(seller) // ✅ SELLER ID IS PROPERLY ATTACHED HERE
                 .tags(request.getTags() != null ? String.join(",", request.getTags()) : null)
                 .pickupLocation(request.getPickupLocation())
                 .deliveryAvailable(request.isDeliveryAvailable())
-                .status(ProductStatus.PENDING)
+                .status(ProductStatus.PENDING) // All products start as PENDING for admin approval
                 .viewCount(0)
                 .favoriteCount(0)
                 .isFeatured(false)
@@ -84,6 +86,7 @@ public class ProductService {
         Sort sort = createSort(sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         
+        // ✅ ONLY SHOW APPROVED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByStatusOrderByCreatedAtDesc(
                 ProductStatus.APPROVED, pageable);
         
@@ -94,6 +97,7 @@ public class ProductService {
         Sort sort = createSort(sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         
+        // ✅ ONLY SHOW APPROVED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByCategoryIdAndStatusOrderByCreatedAtDesc(
                 categoryId, ProductStatus.APPROVED, pageable);
         
@@ -111,9 +115,11 @@ public class ProductService {
         Page<Product> productPage;
         
         if (request.getKeyword() != null && !request.getKeyword().trim().isEmpty()) {
+            // ✅ ONLY SEARCH APPROVED PRODUCTS (NOT SOLD ONES)
             productPage = productRepository.searchByKeyword(
                     request.getKeyword().trim(), ProductStatus.APPROVED, pageable);
         } else {
+            // ✅ ONLY FILTER APPROVED PRODUCTS (NOT SOLD ONES)
             productPage = productRepository.findWithFilters(
                     ProductStatus.APPROVED,
                     request.getCategoryId(),
@@ -148,6 +154,7 @@ public class ProductService {
 
     public PagedResponse<ProductResponse> getFeaturedProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        // ✅ ONLY SHOW APPROVED AND FEATURED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByStatusAndIsFeaturedTrueOrderByCreatedAtDesc(
                 ProductStatus.APPROVED, pageable);
         
@@ -158,13 +165,16 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
-        if (product.getStatus() != ProductStatus.APPROVED) {
+        // ✅ ALLOW VIEWING SOLD PRODUCTS BUT SHOW STATUS
+        if (product.getStatus() != ProductStatus.APPROVED && product.getStatus() != ProductStatus.SOLD) {
             throw new RuntimeException("Product not available");
         }
         
-        // Increment view count
-        product.setViewCount(product.getViewCount() + 1);
-        productRepository.save(product);
+        // Increment view count only for approved products
+        if (product.getStatus() == ProductStatus.APPROVED) {
+            product.setViewCount(product.getViewCount() + 1);
+            productRepository.save(product);
+        }
         
         return convertToProductResponse(product);
     }
@@ -173,6 +183,7 @@ public class ProductService {
         User user = getUserFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         
+        // ✅ SHOW ALL USER'S PRODUCTS (INCLUDING SOLD ONES)
         Page<Product> productPage = productRepository.findBySellerIdOrderByCreatedAtDesc(
                 user.getId(), pageable);
         
@@ -207,7 +218,8 @@ public class ProductService {
         
         if (request.getCategoryId() != null) {
             Category category = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
+                    .orElse(categoryRepository.findById("others")
+                            .orElseThrow(() -> new RuntimeException("Default 'others' category not found")));
             product.setCategory(category);
         }
         
@@ -333,11 +345,11 @@ public class ProductService {
                 tags,
                 product.getCreatedAt(),
                 product.getUpdatedAt(),
-                product.getSeller().getId(),
+                product.getSeller().getId(), // ✅ SELLER ID IS INCLUDED
                 product.getSeller().getName(),
                 product.getSeller().getSellerBadge().name(),
                 product.getSeller().getSellerRating(),
-                product.getSeller().isVerifiedStudent(), // Include verified student status
+                product.getSeller().isVerifiedStudent(),
                 product.getCategory().getId(),
                 product.getCategory().getName(),
                 images,

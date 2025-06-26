@@ -22,4 +22,7 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, St
     
     @Query("SELECT COUNT(r) FROM ProductReview r WHERE r.product.seller.id = :sellerId AND r.isApproved = true")
     long countReviewsBySellerProducts(String sellerId);
+    
+    // Admin queries
+    long countByIsApprovedFalse();
 }

@@ -22,4 +22,7 @@ public interface UserReviewRepository extends JpaRepository<UserReview, String> 
     
     @Query("SELECT COUNT(r) FROM UserReview r WHERE r.reviewee.id = :userId AND r.reviewType = :reviewType AND r.isApproved = true")
     long countByUserAndType(String userId, ReviewType reviewType);
+    
+    // Admin queries
+    long countByIsApprovedFalse();
 }
