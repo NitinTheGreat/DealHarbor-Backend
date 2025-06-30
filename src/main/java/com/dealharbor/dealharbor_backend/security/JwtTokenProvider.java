@@ -30,6 +30,8 @@ public class JwtTokenProvider {
                 .subject(user.getId())
                 .claim("role", user.getRole().name())
                 .claim("email", user.getEmail())
+                .claim("name", user.getName())
+                .claim("isStudentVerified", user.isVerifiedStudent())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(accessTokenValidity)))
                 .signWith(key, Jwts.SIG.HS384)
@@ -41,11 +43,16 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    public long getAccessTokenValidity() {
+        return accessTokenValidity;
+    }
+
     public boolean validateToken(String token) {
         try {
             parseClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
+            System.out.println("JWT validation failed: " + e.getMessage());
             return false;
         }
     }

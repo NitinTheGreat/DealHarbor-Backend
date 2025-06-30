@@ -65,6 +65,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.checkEmail(req));
     }
 
+    @PostMapping("/check-email-for-reset")
+    public ResponseEntity<EmailResetEligibilityResponse> checkEmailForReset(@RequestBody CheckEmailRequest req) {
+        return ResponseEntity.ok(authService.checkEmailForReset(req));
+    }
+
     @GetMapping("/test")
     public ResponseEntity<?> test() {
         return ResponseEntity.ok("Auth endpoints are working!");

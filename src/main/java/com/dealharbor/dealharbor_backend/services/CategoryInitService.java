@@ -3,28 +3,39 @@ package com.dealharbor.dealharbor_backend.services;
 import com.dealharbor.dealharbor_backend.entities.Category;
 import com.dealharbor.dealharbor_backend.repositories.CategoryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Order(1) // Run before DatabaseInitService
+@Order(1)
+@Slf4j
 public class CategoryInitService implements CommandLineRunner {
 
     private final CategoryRepository categoryRepository;
 
     @Override
     public void run(String... args) throws Exception {
-        if (categoryRepository.count() == 0) {
-            initializeCategories();
-            System.out.println("✅ Categories initialized successfully!");
+        try {
+            if (categoryRepository.count() == 0) {
+                log.info("Initializing categories...");
+                initializeCategories();
+                log.info("✅ Categories initialized successfully!");
+            } else {
+                log.info("Categories already exist, skipping initialization");
+            }
+        } catch (Exception e) {
+            log.error("Failed to initialize categories: {}", e.getMessage(), e);
+            throw e; // Re-throw since we fixed the root cause
         }
     }
 
+    @Transactional
     private void initializeCategories() {
         // MAIN CATEGORIES
         

@@ -7,7 +7,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CheckEmailResponse {
+public class EmailResetEligibilityResponse {
     private boolean exists;
     private boolean verified;
+    private boolean eligible;
+    private String message;
 }

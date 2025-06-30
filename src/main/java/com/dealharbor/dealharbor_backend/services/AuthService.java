@@ -111,11 +111,10 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest req) {
-        User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
         
-        if (user.isDeleted()) {
-            throw new RuntimeException("Account has been deleted");
+        if (user == null || user.isDeleted()) {
+            throw new RuntimeException("REDIRECT_TO_SIGNUP");
         }
         
         if (!user.isEnabled()) {
@@ -138,7 +137,18 @@ public class AuthService {
             user.setLastLoginAt(Instant.now());
             userRepository.save(user);
 
-            return new LoginResponse(accessToken, refreshToken);
+            // Create UserInfo for response
+            LoginResponse.UserInfo userInfo = new LoginResponse.UserInfo(
+                user.getId(),
+                user.getName().split(" ")[0], // firstName
+                user.getName().contains(" ") ? user.getName().substring(user.getName().indexOf(" ") + 1) : "", // lastName
+                user.getEmail(),
+                user.getRole().toString(),
+                user.isVerifiedStudent(),
+                user.getProfilePhotoUrl()
+            );
+
+            return new LoginResponse(accessToken, refreshToken, 3600, userInfo, !user.isVerifiedStudent());
         } catch (Exception e) {
             throw new RuntimeException("Invalid credentials");
         }
@@ -166,20 +176,26 @@ public class AuthService {
 
         refreshTokenRepository.delete(token);
 
-        return new LoginResponse(newAccessToken, newRefreshToken);
+        // Create UserInfo for response
+        LoginResponse.UserInfo userInfo = new LoginResponse.UserInfo(
+            user.getId(),
+            user.getName().split(" ")[0], // firstName
+            user.getName().contains(" ") ? user.getName().substring(user.getName().indexOf(" ") + 1) : "", // lastName
+            user.getEmail(),
+            user.getRole().toString(),
+            user.isVerifiedStudent(),
+            user.getProfilePhotoUrl()
+        );
+
+        return new LoginResponse(newAccessToken, newRefreshToken, 3600, userInfo, !user.isVerifiedStudent());
     }
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest req) {
-        User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
         
-        if (user.isDeleted()) {
-            throw new RuntimeException("Account has been deleted");
-        }
-        
-        if (!user.isEnabled()) {
-            throw new RuntimeException("Account not verified");
+        if (user == null || user.isDeleted() || !user.isEnabled()) {
+            throw new RuntimeException("Email not found or not verified");
         }
 
         String otp = generateOtp();
@@ -194,6 +210,8 @@ public class AuthService {
         
         emailService.sendForgotPasswordOtp(req.getEmail(), otp);
         System.out.println("Password Reset OTP (for dev only): " + otp);
+        
+        securityService.recordSecurityEvent(user.getId(), "PASSWORD_RESET_REQUESTED", "N/A", "N/A", "Password reset requested");
     }
 
     @Transactional
@@ -212,6 +230,11 @@ public class AuthService {
             throw new RuntimeException("Account has been deleted");
         }
 
+        // Check if new password is same as old password
+        if (passwordEncoder.matches(req.getNewPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("New password cannot be the same as your current password");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
@@ -228,6 +251,20 @@ public class AuthService {
             return new CheckEmailResponse(false, false);
         }
         return new CheckEmailResponse(true, user.isEnabled());
+    }
+
+    public EmailResetEligibilityResponse checkEmailForReset(CheckEmailRequest req) {
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
+        
+        if (user == null || user.isDeleted()) {
+            return new EmailResetEligibilityResponse(false, false, false, "Email not found");
+        }
+        
+        if (!user.isEnabled()) {
+            return new EmailResetEligibilityResponse(true, false, false, "Email not verified");
+        }
+        
+        return new EmailResetEligibilityResponse(true, true, true, "Email eligible for password reset");
     }
 
     // Protected methods (authentication required)
