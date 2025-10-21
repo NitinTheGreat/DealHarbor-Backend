@@ -13,8 +13,12 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Optional;
 
 @Service
@@ -35,11 +39,22 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private OAuth2User processOAuth2User(OAuth2UserRequest oAuth2UserRequest, OAuth2User oAuth2User) {
+        String registrationId = oAuth2UserRequest.getClientRegistration().getRegistrationId();
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(
-                oAuth2UserRequest.getClientRegistration().getRegistrationId(), 
+                registrationId,
                 oAuth2User.getAttributes()
         );
-        
+
+        // GitHub sometimes omits email in /user unless it's public; fetch from /user/emails if missing
+        if ("github".equalsIgnoreCase(registrationId) && !StringUtils.hasText(oAuth2UserInfo.getEmail())) {
+            String ghEmail = fetchGithubPrimaryEmail(oAuth2UserRequest);
+            if (StringUtils.hasText(ghEmail)) {
+                HashMap<String, Object> attrs = new HashMap<>(oAuth2User.getAttributes());
+                attrs.put("email", ghEmail);
+                oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(registrationId, attrs);
+            }
+        }
+
         if(!StringUtils.hasText(oAuth2UserInfo.getEmail())) {
             throw new RuntimeException("Email not found from OAuth2 provider");
         }
@@ -91,5 +106,42 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         existingUser.setProfilePhotoUrl(oAuth2UserInfo.getImageUrl());
         existingUser.setUpdatedAt(Instant.now());
         return userRepository.save(existingUser);
+    }
+
+    private String fetchGithubPrimaryEmail(OAuth2UserRequest request) {
+        try {
+        String token = request.getAccessToken().getTokenValue();
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + token);
+        headers.set("Accept", "application/vnd.github+json");
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<java.util.List<java.util.Map<String, Object>>> resp = restTemplate.exchange(
+            "https://api.github.com/user/emails",
+            HttpMethod.GET,
+            entity,
+            new ParameterizedTypeReference<java.util.List<java.util.Map<String, Object>>>() {}
+        );
+        java.util.List<java.util.Map<String, Object>> list = resp.getBody();
+            if (list == null) return null;
+            String first = null;
+            for (java.util.Map<String, Object> emailObj : list) {
+                Object email = emailObj.get("email");
+                Object primary = emailObj.get("primary");
+                Object verified = emailObj.get("verified");
+                if (email instanceof String em) {
+                    if (first == null) first = em;
+                    boolean isPrimary = primary instanceof Boolean b && b;
+                    boolean isVerified = verified instanceof Boolean b2 && b2;
+                    if (isPrimary && isVerified) {
+                        return em;
+                    }
+                }
+            }
+            return first; // fallback to first if no primary verified
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

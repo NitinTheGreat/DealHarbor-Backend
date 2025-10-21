@@ -1,3 +1,5 @@
+.\mvnw spring-boot:run
+docker run -d --name redis-local -p 6379:6379 redis:latest
 
 # DealHarbor Backend Application
  * 

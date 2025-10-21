@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealHarbor Auth Test App</title>
+  <style>
+    :root { --b:#e5e7eb; --t:#111827; --m:#6b7280; --ok:#065f46; --err:#991b1b; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; color: var(--t); }
+    header { padding: 12px 16px; border-bottom:1px solid var(--b); display:flex; align-items:center; justify-content:space-between; }
+    header h1 { margin:0; font-size:18px; }
+    nav { display:flex; gap:8px; }
+    nav button { padding:6px 10px; border:1px solid var(--b); background:#fff; border-radius:6px; cursor:pointer; }
+    nav button.active { background:#111827; color:#fff; border-color:#111827; }
+    main { padding: 16px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; }
+    .card { border:1px solid var(--b); border-radius:8px; padding:16px; background:#fff; }
+    h2, h3 { margin: 8px 0 12px; }
+    .row { display:flex; gap:8px; align-items:center; margin: 6px 0; }
+    .col { display:flex; flex-direction:column; gap:8px; }
+    input[type="text"], input[type="password"], input[type="email"], textarea { width:100%; padding:8px; border:1px solid var(--b); border-radius:6px; }
+    textarea { min-height:80px; }
+    button { padding:8px 12px; cursor:pointer; border:1px solid var(--b); background:#fff; border-radius:6px; }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); white-space: pre-wrap; }
+    .small { font-size:12px; color: var(--m); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    pre { background:#f9fafb; padding:8px; border-radius:6px; overflow:auto; }
+    .muted { color: var(--m); }
+    .table { width:100%; border-collapse: collapse; }
+    .table th, .table td { border:1px solid var(--b); padding:6px 8px; text-align:left; }
+    .hidden { display:none; }
+  </style>
+  <script>
+  // Force calls to the backend at this base URL
+  const base = 'http://localhost:8080';
+    const state = { me:null, sessionInfo:null, timerId:null };
+
+    // ---------- helpers ----------
+    function qs(id){ return document.getElementById(id); }
+    function setOut(id, msg, isErr=false){ const el=qs(id); el.className = 'small ' + (isErr?'err':'ok'); el.textContent = msg; }
+    function setPre(id, obj){ const el=qs(id); el.textContent = typeof obj==='string'?obj:JSON.stringify(obj, null, 2); }
+    function show(tab){ for(const s of document.querySelectorAll('[data-tab]')) s.classList.add('hidden'); qs(tab).classList.remove('hidden'); for(const b of document.querySelectorAll('nav button')) b.classList.toggle('active', b.dataset.goto===tab); }
+
+    async function http(method, url, body, headers){
+      const opts = { method, credentials:'include', headers: headers||{}, mode:'cors' };
+      if(body!==undefined){
+        if(typeof body === 'string' && (headers && headers['Content-Type']==='text/plain')){
+          opts.body = body;
+        } else {
+          opts.headers['Content-Type'] = 'application/json';
+          opts.body = JSON.stringify(body);
+        }
+      }
+      let r;
+      try {
+        r = await fetch(url, opts);
+      } catch (e) {
+        throw new Error('Network/Fetch error: '+ e.message);
+      }
+      let txt = await r.text();
+      if(!r.ok){ throw new Error(r.status + ' ' + r.statusText + ': ' + txt); }
+      try { return JSON.parse(txt); } catch { return txt; }
+    }
+    const get = (url)=>http('GET', url);
+    const post = (url, body)=>http('POST', url, body);
+    const put = (url, body)=>http('PUT', url, body);
+    const del = (url)=>http('DELETE', url);
+    const putText = (url, text)=>http('PUT', url, text, {'Content-Type':'text/plain'});
+
+    // ---------- auth flows ----------
+    async function checkEmail(){
+      try{
+        const email = qs('regEmail').value.trim();
+        const res = await post(`${base}/api/auth/check-email`, { email });
+        setOut('checkEmailOut', 'exists='+res.exists+', verified='+res.verified);
+      }catch(e){ setOut('checkEmailOut', e.message, true); }
+    }
+    async function register(){
+      try{
+        const email=qs('regEmail').value.trim();
+        const name=qs('regName').value.trim();
+        const password=qs('regPass').value;
+        const msg = await post(`${base}/api/auth/register`, { email, name, password });
+        setOut('regOut', msg);
+      }catch(e){ setOut('regOut', e.message, true); }
+    }
+    async function resendOtp(){
+      try{
+        const email=qs('vEmail').value.trim();
+        const msg = await post(`${base}/api/auth/resend-otp`, { email });
+        setOut('verOut', msg);
+      }catch(e){ setOut('verOut', e.message, true); }
+    }
+    async function verify(){
+      try{
+        const email=qs('vEmail').value.trim();
+        const otp=qs('vOtp').value.trim();
+        const msg = await post(`${base}/api/auth/verify`, { email, otp });
+        setOut('verOut', msg);
+      }catch(e){ setOut('verOut', e.message, true); }
+    }
+    async function login(){
+      try{
+        const email=qs('lEmail').value.trim();
+        const password=qs('lPass').value;
+        const msg = await post(`${base}/api/auth/login`, { email, password });
+        setOut('loginOut', msg);
+        await refreshMe();
+      }catch(e){ setOut('loginOut', e.message, true); }
+    }
+    function oauth(provider){ window.open(`${base}/oauth2/authorization/${provider}`, '_blank'); }
+    async function forgot(){
+      try{ const email=qs('fEmail').value.trim(); const msg=await post(`${base}/api/auth/forgot-password`, { email }); setOut('forgotOut', msg); }
+      catch(e){ setOut('forgotOut', e.message, true); }
+    }
+    async function resetPass(){
+      try{ const email=qs('rEmail').value.trim(); const otp=qs('rOtp').value.trim(); const newPassword=qs('rNew').value; const msg=await post(`${base}/api/auth/reset-password`, { email, otp, newPassword }); setOut('resetOut', msg); }
+      catch(e){ setOut('resetOut', e.message, true); }
+    }
+
+    // ---------- dashboard ----------
+    async function refreshMe(){
+      try{ const data = await get(`${base}/api/auth/me`); state.me = data; setPre('meOut', data); fillProfileForm(data); }
+      catch(e){ state.me=null; setPre('meOut', e.message); }
+    }
+    function fillProfileForm(me){ if(!me) return; qs('pName').value = me.name||''; qs('pBio').value = me.bio||''; qs('pPhone').value = me.phoneNumber||''; }
+    async function updateProfile(){
+      try{
+        const name=qs('pName').value.trim(); const bio=qs('pBio').value.trim(); const phoneNumber=qs('pPhone').value.trim();
+        const res = await put(`${base}/api/auth/profile`, { name, bio, phoneNumber });
+        setOut('profileOut', 'updated'); setPre('meOut', res);
+      }catch(e){ setOut('profileOut', e.message, true); }
+    }
+    async function updatePhoto(){
+      try{ const url=qs('photoUrl').value.trim(); const res=await putText(`${base}/api/auth/profile-photo`, url); setOut('photoOut', 'photo updated'); setPre('meOut', res); }
+      catch(e){ setOut('photoOut', e.message, true); }
+    }
+    async function changePassword(){
+      try{ const currentPassword=qs('cpCur').value; const newPassword=qs('cpNew').value; const msg=await post(`${base}/api/auth/change-password`, { currentPassword, newPassword }); setOut('cpOut', msg); }
+      catch(e){ setOut('cpOut', e.message, true); }
+    }
+    async function changeEmail(){
+      try{ const password=qs('cePass').value; const newEmail=qs('ceNew').value.trim(); const msg=await post(`${base}/api/auth/change-email`, { password, newEmail }); setOut('ceOut', msg); }
+      catch(e){ setOut('ceOut', e.message, true); }
+    }
+    async function verifyEmailChange(){
+      try{ const email=qs('cevEmail').value.trim(); const otp=qs('cevOtp').value.trim(); const msg=await post(`${base}/api/auth/verify-email-change`, { email, otp }); setOut('cevOut', msg); await refreshMe(); }
+      catch(e){ setOut('cevOut', e.message, true); }
+    }
+    async function listSessions(){
+      try{ const list=await get(`${base}/api/auth/sessions`); renderSessions(list); }
+      catch(e){ qs('sessionsOut').textContent = e.message; }
+    }
+    function renderSessions(list){
+      const el = qs('sessionsTable');
+      el.innerHTML = '<tr><th>ID</th><th>IP</th><th>Device</th><th>Created</th><th>Last Used</th><th></th></tr>' +
+        list.map(s=>`<tr><td class="mono small">${s.sessionId}</td><td>${s.ipAddress||''}</td><td>${s.deviceInfo||''}</td><td>${s.createdAt||''}</td><td>${s.lastUsedAt||''}</td><td><button onclick="terminateSession('${s.sessionId}')">Terminate</button></td></tr>`).join('');
+    }
+    async function terminateSession(id){
+      try{ const msg = await del(`${base}/api/auth/sessions/${id}`); setOut('sessionsOut', 'terminated: '+id); await listSessions(); }
+      catch(e){ setOut('sessionsOut', e.message, true); }
+    }
+    async function securityEvents(){
+      try{ const list = await get(`${base}/api/auth/security-events`); setPre('eventsOut', list); }
+      catch(e){ setPre('eventsOut', e.message); }
+    }
+    async function accountStats(){
+      try{ const data = await get(`${base}/api/auth/account-stats`); setPre('statsOut', data); }
+      catch(e){ setPre('statsOut', e.message); }
+    }
+    async function deleteAccount(){
+      try{ const password=qs('daPass').value; const reason=qs('daReason').value; const res=await http('DELETE', `${base}/api/auth/account`, { password, reason }); setOut('daOut', typeof res==='string'?res:'deleted'); await logout(); }
+      catch(e){ setOut('daOut', e.message, true); }
+    }
+    async function logout(){
+      try{ const msg = await post(`${base}/api/auth/logout`); setOut('logoutOut', msg); state.me=null; setPre('meOut',''); qs('sessionsTable').innerHTML=''; setPre('eventsOut',''); setPre('statsOut',''); state.sessionInfo=null; qs('remain').textContent=''; }
+      catch(e){ setOut('logoutOut', e.message, true); }
+    }
+
+    // ---------- session info + timer ----------
+    async function sessionInfo(){
+      try{ const data = await get(`${base}/api/auth/session-info`); state.sessionInfo=data; setPre('sessOut', data); }
+      catch(e){ setPre('sessOut', e.message); }
+    }
+    function tick(){ if(!state.sessionInfo) return; const now=Date.now(); const remain=Math.max(0, Math.floor((state.sessionInfo.expiresAt - now)/1000)); qs('remain').textContent = remain+'s'; if(remain<=0){ stopTimer(); } }
+    function startTimer(){ if(!state.sessionInfo){ sessionInfo().then(startTimer); return;} if(state.timerId) return; tick(); state.timerId=setInterval(tick, 1000); }
+    function stopTimer(){ if(state.timerId) clearInterval(state.timerId); state.timerId=null; }
+
+    // ---------- init ----------
+    window.addEventListener('DOMContentLoaded', async ()=>{ show('tab-auth'); await refreshMe(); });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>DealHarbor Auth Test App</h1>
+    <nav>
+      <button data-goto="tab-auth" onclick="show('tab-auth')" class="active">Auth</button>
+      <button data-goto="tab-oauth" onclick="show('tab-oauth')">OAuth2</button>
+      <button data-goto="tab-dashboard" onclick="show('tab-dashboard')">Dashboard</button>
+      <button data-goto="tab-session" onclick="show('tab-session')">Session</button>
+    </nav>
+  </header>
+  <main>
+    <!-- Auth Tab -->
+    <section id="tab-auth" data-tab>
+      <div class="grid">
+        <div class="card">
+          <h3>Check Email</h3>
+          <div class="row"><input id="regEmail" type="email" placeholder="Email" /></div>
+          <div class="row"><button onclick="checkEmail()">Check</button></div>
+          <div id="checkEmailOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Register</h3>
+          <div class="row"><input id="regName" type="text" placeholder="Name" /></div>
+          <div class="row"><input id="regPass" type="password" placeholder="Password" /></div>
+          <div class="row"><button onclick="register()">Register</button></div>
+          <div id="regOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Verify Email</h3>
+          <div class="row"><input id="vEmail" type="email" placeholder="Email" /></div>
+          <div class="row"><input id="vOtp" type="text" placeholder="OTP" /></div>
+          <div class="row"><button onclick="verify()">Verify</button><button onclick="resendOtp()">Resend OTP</button></div>
+          <div id="verOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Login</h3>
+          <div class="row"><input id="lEmail" type="email" placeholder="Email" /></div>
+          <div class="row"><input id="lPass" type="password" placeholder="Password" /></div>
+          <div class="row"><button onclick="login()">Login</button></div>
+          <div id="loginOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Forgot / Reset Password</h3>
+          <div class="row"><input id="fEmail" type="email" placeholder="Email" /></div>
+          <div class="row"><button onclick="forgot()">Forgot Password</button></div>
+          <div class="row"><input id="rEmail" type="email" placeholder="Email (reset)" /></div>
+          <div class="row"><input id="rOtp" type="text" placeholder="OTP" /></div>
+          <div class="row"><input id="rNew" type="password" placeholder="New Password" /></div>
+          <div class="row"><button onclick="resetPass()">Reset</button></div>
+          <div id="resetOut" class="small"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OAuth2 Tab -->
+    <section id="tab-oauth" class="hidden" data-tab>
+      <div class="grid">
+        <div class="card">
+          <h3>OAuth2 Login</h3>
+          <div class="row"><button onclick="oauth('google')">Continue with Google</button><button onclick="oauth('github')">Continue with GitHub</button></div>
+          <div class="small">A new tab will open to the provider. After success, you’ll be redirected to the configured URI and this browser will have an authenticated session cookie for this origin. Return here and click into Dashboard → Me.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard Tab -->
+    <section id="tab-dashboard" class="hidden" data-tab>
+      <div class="grid">
+        <div class="card">
+          <h3>Me (Profile)</h3>
+          <div class="row"><button onclick="refreshMe()">Fetch /api/auth/me</button></div>
+          <pre id="meOut" class="mono small"></pre>
+        </div>
+        <div class="card">
+          <h3>Update Profile</h3>
+          <div class="row"><input id="pName" type="text" placeholder="Name" /></div>
+          <div class="row"><textarea id="pBio" placeholder="Bio"></textarea></div>
+          <div class="row"><input id="pPhone" type="text" placeholder="Phone Number" /></div>
+          <div class="row"><button onclick="updateProfile()">Save</button></div>
+          <div id="profileOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Update Profile Photo</h3>
+          <div class="row"><input id="photoUrl" type="text" placeholder="Photo URL" /></div>
+          <div class="row"><button onclick="updatePhoto()">Update Photo</button></div>
+          <div id="photoOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Change Password</h3>
+          <div class="row"><input id="cpCur" type="password" placeholder="Current Password" /></div>
+          <div class="row"><input id="cpNew" type="password" placeholder="New Password" /></div>
+          <div class="row"><button onclick="changePassword()">Change</button></div>
+          <div id="cpOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Change Email</h3>
+          <div class="row"><input id="cePass" type="password" placeholder="Password" /></div>
+          <div class="row"><input id="ceNew" type="email" placeholder="New Email" /></div>
+          <div class="row"><button onclick="changeEmail()">Request Change</button></div>
+          <div id="ceOut" class="small"></div>
+          <h3>Verify Email Change</h3>
+          <div class="row"><input id="cevEmail" type="email" placeholder="New Email (again)" /></div>
+          <div class="row"><input id="cevOtp" type="text" placeholder="OTP" /></div>
+          <div class="row"><button onclick="verifyEmailChange()">Verify Change</button></div>
+          <div id="cevOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Active Sessions</h3>
+          <div class="row"><button onclick="listSessions()">Load Sessions</button></div>
+          <table class="table" id="sessionsTable"></table>
+          <div id="sessionsOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Security Events</h3>
+          <div class="row"><button onclick="securityEvents()">Load Events</button></div>
+          <pre id="eventsOut" class="mono small"></pre>
+        </div>
+        <div class="card">
+          <h3>Account Stats</h3>
+          <div class="row"><button onclick="accountStats()">Load Stats</button></div>
+          <pre id="statsOut" class="mono small"></pre>
+        </div>
+        <div class="card">
+          <h3>Logout</h3>
+          <div class="row"><button onclick="logout()">Logout</button></div>
+          <div id="logoutOut" class="small"></div>
+        </div>
+        <div class="card">
+          <h3>Delete Account</h3>
+          <div class="row"><input id="daPass" type="password" placeholder="Password" /></div>
+          <div class="row"><input id="daReason" type="text" placeholder="Reason (optional)" /></div>
+          <div class="row"><button onclick="deleteAccount()">Delete</button></div>
+          <div id="daOut" class="small"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Session Tab -->
+    <section id="tab-session" class="hidden" data-tab>
+      <div class="grid">
+        <div class="card">
+          <h3>Session Info + Timer</h3>
+          <div class="row"><button onclick="sessionInfo()">Fetch Info</button><button onclick="startTimer()">Start Timer</button><button onclick="stopTimer()">Stop Timer</button></div>
+          <div class="small">Max Inactive Interval is managed by the server (Spring Session + Redis). The remaining timer is computed client-side from lastAccessedTime + maxInactiveInterval.</div>
+          <pre id="sessOut" class="mono small"></pre>
+          <div class="row"><span>Remaining:</span><span id="remain" class="mono"></span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

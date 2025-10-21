@@ -1,0 +1,704 @@
+================================================================================
+                        DEALHARBOR BACKEND - API ENDPOINTS GUIDE
+================================================================================
+
+Project: DealHarbor Backend
+Type: Intra-University E-commerce Platform (VIT Students)
+Technology: Spring Boot 3.x + PostgreSQL + JWT Authentication
+Base URL: http://localhost:8080
+
+================================================================================
+                                ROOT ENDPOINTS
+================================================================================
+
+1. GET /
+   Description: Health check for application root
+   Authentication: None
+   Response: "DealHarbor Backend is running!"
+   
+   Example:
+   curl http://localhost:8080/
+
+2. GET /health
+   Description: Simple health check endpoint
+   Authentication: None
+   Response: "OK"
+   
+   Example:
+   curl http://localhost:8080/health
+
+================================================================================
+                               TEST ENDPOINTS
+================================================================================
+
+3. GET /api/test/health
+   Description: API health check
+   Authentication: None
+   Response: "Server is running successfully!"
+   
+   Example:
+   curl http://localhost:8080/api/test/health
+
+4. GET /api/test/public
+   Description: Public test endpoint (no auth required)
+   Authentication: None
+   Response: "This is a public endpoint - no auth required"
+   
+   Example:
+   curl http://localhost:8080/api/test/public
+
+5. GET /api/test/protected
+   Description: Protected test endpoint (requires authentication)
+   Authentication: Bearer Token Required
+   Response: "Protected endpoint accessed by: [user email]"
+   
+   Example:
+   curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+        http://localhost:8080/api/test/protected
+
+6. POST /api/test/echo
+   Description: Echo test endpoint
+   Authentication: None
+   Content-Type: application/json
+   Body: Any string value
+   Response: Returns the same string
+   
+   Example:
+   curl -X POST http://localhost:8080/api/test/echo \
+        -H "Content-Type: application/json" \
+        -d '"Hello DealHarbor!"'
+
+================================================================================
+                           AUTHENTICATION ENDPOINTS
+================================================================================
+
+7. POST /api/auth/register
+   Description: Register a new user account
+   Authentication: None
+   Content-Type: application/json
+   
+   Request Body:
+   {
+     "email": "user@example.com",
+     "password": "password123",
+     "name": "John Doe"
+   }
+   
+   Response: "Registration successful. OTP sent to email."
+   
+   Note: VIT emails (@vitstudent.ac.in) are auto-verified
+   
+   Example:
+   curl -X POST http://localhost:8080/api/auth/register \
+        -H "Content-Type: application/json" \
+        -d '{
+          "email": "john.doe@example.com",
+          "password": "password123",
+          "name": "John Doe"
+        }'
+
+8. POST /api/auth/verify
+   Description: Verify email with OTP code
+   Authentication: None
+   Content-Type: application/json
+   
+   Request Body:
+   {
+     "email": "user@example.com",
+     "otp": "123456"
+   }
+   
+   Response: "Email verified successfully. You can now log in."
+   
+   Example:
+   curl -X POST http://localhost:8080/api/auth/verify \
+        -H "Content-Type: application/json" \
+        -d '{
+          "email": "john.doe@example.com",
+          "otp": "123456"
+        }'
+
+9. POST /api/auth/resend-otp
+   Description: Resend OTP to email
+   Authentication: None
+   Content-Type: application/json
+   
+   Request Body:
+   {
+     "email": "user@example.com"
+   }
+   
+   Response: "New OTP sent to email."
+   
+   Example:
+   curl -X POST http://localhost:8080/api/auth/resend-otp \
+        -H "Content-Type: application/json" \
+        -d '{"email": "john.doe@example.com"}'
+
+10. POST /api/auth/login
+    Description: Login to get JWT tokens
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "email": "user@example.com",
+      "password": "password123"
+    }
+    
+    Response:
+    {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+    }
+    
+    Example:
+    curl -X POST http://localhost:8080/api/auth/login \
+         -H "Content-Type: application/json" \
+         -d '{
+           "email": "test@dealharbor.com",
+           "password": "password123"
+         }'
+
+11. GET /api/auth/me
+    Description: Get current user profile
+    Authentication: Bearer Token Required
+    
+    Response: Complete user profile with stats
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://localhost:8080/api/auth/me
+
+12. PUT /api/auth/profile
+    Description: Update user profile
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body (all fields optional):
+    {
+      "name": "Updated Name",
+      "bio": "Updated biography",
+      "phoneNumber": "+91-9876543210"
+    }
+    
+    Example:
+    curl -X PUT http://localhost:8080/api/auth/profile \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "name": "John Updated",
+           "bio": "Computer Science Student at VIT"
+         }'
+
+13. POST /api/auth/change-password
+    Description: Change user password
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "currentPassword": "oldpassword123",
+      "newPassword": "newpassword123"
+    }
+    
+    Example:
+    curl -X POST http://localhost:8080/api/auth/change-password \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "currentPassword": "password123",
+           "newPassword": "newpassword456"
+         }'
+
+14. POST /api/auth/forgot-password
+    Description: Request password reset OTP
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "email": "user@example.com"
+    }
+    
+    Example:
+    curl -X POST http://localhost:8080/api/auth/forgot-password \
+         -H "Content-Type: application/json" \
+         -d '{"email": "user@example.com"}'
+
+15. POST /api/auth/reset-password
+    Description: Reset password using OTP
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "email": "user@example.com",
+      "otp": "123456",
+      "newPassword": "newpassword123"
+    }
+    
+    Example:
+    curl -X POST http://localhost:8080/api/auth/reset-password \
+         -H "Content-Type: application/json" \
+         -d '{
+           "email": "user@example.com",
+           "otp": "123456",
+           "newPassword": "newpassword123"
+         }'
+
+16. POST /api/auth/check-email
+    Description: Check if email exists and is verified
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "email": "user@example.com"
+    }
+    
+    Response:
+    {
+      "exists": true,
+      "verified": true
+    }
+
+17. POST /api/auth/refresh?refreshToken={token}
+    Description: Refresh JWT access token
+    Authentication: None
+    Query Parameter: refreshToken
+    
+    Response: New access and refresh tokens
+    
+    Example:
+    curl -X POST "http://localhost:8080/api/auth/refresh?refreshToken=YOUR_REFRESH_TOKEN"
+
+18. POST /api/auth/logout?refreshToken={token}
+    Description: Logout from current device
+    Authentication: Bearer Token Required
+    Query Parameter: refreshToken
+    
+    Example:
+    curl -X POST "http://localhost:8080/api/auth/logout?refreshToken=YOUR_REFRESH_TOKEN" \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+19. POST /api/auth/logout-all
+    Description: Logout from all devices
+    Authentication: Bearer Token Required
+    
+    Example:
+    curl -X POST http://localhost:8080/api/auth/logout-all \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+20. GET /api/auth/sessions
+    Description: Get active login sessions
+    Authentication: Bearer Token Required
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://localhost:8080/api/auth/sessions
+
+21. GET /api/auth/security-events
+    Description: Get security events for user
+    Authentication: Bearer Token Required
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://localhost:8080/api/auth/security-events
+
+22. GET /api/auth/account-stats
+    Description: Get account statistics
+    Authentication: Bearer Token Required
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://localhost:8080/api/auth/account-stats
+
+================================================================================
+                        STUDENT VERIFICATION ENDPOINTS
+================================================================================
+
+23. POST /api/student-verification/send-otp
+    Description: Send OTP to student email for verification
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "studentEmail": "john.doe@vitstudent.ac.in"
+    }
+    
+    Valid domains: @vitstudent.ac.in, @vit.ac.in, @vitchennai.ac.in
+    
+    Example:
+    curl -X POST http://localhost:8080/api/student-verification/send-otp \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{"studentEmail": "john.doe@vitstudent.ac.in"}'
+
+24. POST /api/student-verification/verify-otp
+    Description: Verify student email with OTP
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body (minimal):
+    {
+      "studentEmail": "john.doe@vitstudent.ac.in",
+      "otp": "123456"
+    }
+    
+    Request Body (complete - optional fields):
+    {
+      "studentEmail": "john.doe@vitstudent.ac.in",
+      "otp": "123456",
+      "universityId": "VIT2021001",
+      "graduationYear": 2025,
+      "department": "Computer Science"
+    }
+    
+    Example:
+    curl -X POST http://localhost:8080/api/student-verification/verify-otp \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "studentEmail": "john.doe@vitstudent.ac.in",
+           "otp": "123456",
+           "universityId": "VIT2021001",
+           "graduationYear": 2025,
+           "department": "Computer Science"
+         }'
+
+================================================================================
+                              PRODUCT ENDPOINTS
+================================================================================
+
+25. GET /api/products
+    Description: Get all products (public, paginated)
+    Authentication: None
+    
+    Query Parameters:
+    - page (optional): Page number (default: 0)
+    - size (optional): Page size (default: 20)
+    - sortBy (optional): Sort order (default: date_desc)
+      Values: price_asc, price_desc, date_asc, date_desc, popularity
+    
+    Example:
+    curl "http://localhost:8080/api/products?page=0&size=10&sortBy=price_asc"
+
+26. GET /api/products/category/{categoryId}
+    Description: Get products by category
+    Authentication: None
+    Path Parameter: categoryId
+    Query Parameters: Same as GET /api/products
+    
+    Example:
+    curl "http://localhost:8080/api/products/category/cat-123?page=0&size=10"
+
+27. POST /api/products/search
+    Description: Advanced product search
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body (all fields optional):
+    {
+      "keyword": "macbook",
+      "categoryId": "cat-123",
+      "minPrice": 50000.00,
+      "maxPrice": 100000.00,
+      "conditions": ["LIKE_NEW", "GOOD"],
+      "location": "VIT Campus",
+      "deliveryAvailable": false,
+      "isNegotiable": true,
+      "verifiedStudentsOnly": true,
+      "sortBy": "price_asc",
+      "page": 0,
+      "size": 20
+    }
+    
+    Product Conditions: NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+    
+    Example:
+    curl -X POST http://localhost:8080/api/products/search \
+         -H "Content-Type: application/json" \
+         -d '{
+           "keyword": "laptop",
+           "minPrice": 30000,
+           "maxPrice": 80000,
+           "verifiedStudentsOnly": true
+         }'
+
+28. GET /api/products/featured
+    Description: Get featured products
+    Authentication: None
+    Query Parameters: page, size (same as GET /api/products)
+    
+    Example:
+    curl "http://localhost:8080/api/products/featured?page=0&size=5"
+
+29. GET /api/products/{productId}
+    Description: Get product by ID
+    Authentication: None
+    Path Parameter: productId
+    
+    Example:
+    curl http://localhost:8080/api/products/prod-123
+
+30. POST /api/products
+    Description: Create new product listing
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "title": "iPhone 13 Pro",
+      "description": "Excellent condition iPhone with all accessories",
+      "price": 65000.00,
+      "originalPrice": 79900.00,
+      "isNegotiable": true,
+      "condition": "LIKE_NEW",
+      "brand": "Apple",
+      "model": "iPhone 13 Pro",
+      "categoryId": "cat-123",
+      "tags": ["iphone", "apple", "smartphone"],
+      "pickupLocation": "VIT Main Campus",
+      "deliveryAvailable": false,
+      "imageUrls": [
+        "/api/images/products/iphone1.jpg",
+        "/api/images/products/iphone2.jpg"
+      ]
+    }
+    
+    Note: Products go to PENDING status and require admin approval
+    
+    Example:
+    curl -X POST http://localhost:8080/api/products \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "title": "Gaming Laptop",
+           "description": "High-performance gaming laptop",
+           "price": 75000.00,
+           "condition": "GOOD",
+           "categoryId": "cat-123"
+         }'
+
+31. GET /api/products/my-products
+    Description: Get current user's products
+    Authentication: Bearer Token Required
+    Query Parameters: page, size, sortBy
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         "http://localhost:8080/api/products/my-products?page=0&size=10"
+
+32. PUT /api/products/{productId}
+    Description: Update product listing
+    Authentication: Bearer Token Required (must be product owner)
+    Content-Type: application/json
+    Path Parameter: productId
+    
+    Request Body: Same as POST /api/products (all fields optional)
+    
+    Example:
+    curl -X PUT http://localhost:8080/api/products/prod-123 \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "title": "Updated iPhone 13 Pro",
+           "price": 60000.00,
+           "isNegotiable": false
+         }'
+
+33. DELETE /api/products/{productId}
+    Description: Delete product listing
+    Authentication: Bearer Token Required (must be product owner)
+    Path Parameter: productId
+    
+    Example:
+    curl -X DELETE http://localhost:8080/api/products/prod-123 \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+================================================================================
+                             CATEGORY ENDPOINTS
+================================================================================
+
+34. GET /api/categories
+    Description: Get all categories (flat list)
+    Authentication: None
+    
+    Example:
+    curl http://localhost:8080/api/categories
+
+35. GET /api/categories/main
+    Description: Get main categories with subcategories (hierarchical)
+    Authentication: None
+    
+    Example:
+    curl http://localhost:8080/api/categories/main
+
+36. GET /api/categories/{categoryId}
+    Description: Get category by ID
+    Authentication: None
+    Path Parameter: categoryId
+    
+    Example:
+    curl http://localhost:8080/api/categories/cat-123
+
+37. GET /api/categories/{parentId}/subcategories
+    Description: Get subcategories of a parent category
+    Authentication: None
+    Path Parameter: parentId
+    
+    Example:
+    curl http://localhost:8080/api/categories/cat-123/subcategories
+
+================================================================================
+                               IMAGE ENDPOINTS
+================================================================================
+
+38. GET /api/images/default-avatar.png
+    Description: Get default user avatar image
+    Authentication: None
+    Response: PNG image file
+    
+    Example:
+    curl http://localhost:8080/api/images/default-avatar.png
+
+39. POST /api/images/upload-profile-photo
+    Description: Upload user profile photo
+    Authentication: Bearer Token Required
+    Content-Type: multipart/form-data
+    
+    Form Data:
+    - file: Image file (PNG, JPG, JPEG)
+    
+    Response: Image URL string
+    
+    Example:
+    curl -X POST http://localhost:8080/api/images/upload-profile-photo \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -F "file=@profile.jpg"
+
+40. GET /api/images/profile-photos/{filename}
+    Description: Get profile photo by filename
+    Authentication: None
+    Path Parameter: filename
+    Response: Image file
+    
+    Example:
+    curl http://localhost:8080/api/images/profile-photos/1640995200000_profile.jpg
+
+================================================================================
+                              ERROR RESPONSES
+================================================================================
+
+Standard Error Format:
+{
+  "error": true,
+  "message": "Error description",
+  "timestamp": 1642234567890
+}
+
+Common HTTP Status Codes:
+- 200: Success
+- 400: Bad Request (invalid data)
+- 401: Unauthorized (authentication required)
+- 403: Forbidden (access denied)
+- 404: Not Found (resource not found)
+- 500: Internal Server Error
+
+================================================================================
+                            AUTHENTICATION SETUP
+================================================================================
+
+JWT Token Usage:
+- Header: Authorization: Bearer {your-jwt-token}
+- Access Token Expires: 15 minutes
+- Refresh Token Expires: 7 days
+- OTP Expires: 15 minutes
+
+Getting Started:
+1. Register: POST /api/auth/register
+2. Verify Email: POST /api/auth/verify (use OTP from console/email)
+3. Login: POST /api/auth/login (get JWT tokens)
+4. Use Bearer token in Authorization header for protected endpoints
+
+Test User (Auto-created):
+- Email: test@dealharbor.com
+- Password: password123
+
+================================================================================
+                               ENUMS REFERENCE
+================================================================================
+
+UserRole: USER, ADMIN
+
+SellerBadge: NEW_SELLER, ACTIVE_SELLER, TRUSTED_SELLER, DEALHARBOR_CHOICE, 
+            PREMIUM_SELLER, LEGENDARY_SELLER
+
+ProductCondition: NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+
+ProductStatus: PENDING, APPROVED, REJECTED, SOLD, DELETED
+
+OrderStatus: PENDING, CONFIRMED, COMPLETED, CANCELLED, DISPUTED
+
+DeliveryMethod: PICKUP, DELIVERY, SHIPPING
+
+MessageType: TEXT, IMAGE, FILE, SYSTEM, ORDER_UPDATE
+
+NotificationType: ORDER_CREATED, ORDER_CONFIRMED, ORDER_COMPLETED, 
+                 ORDER_CANCELLED, PRODUCT_APPROVED, PRODUCT_REJECTED, 
+                 PRODUCT_SOLD, NEW_MESSAGE, NEW_REVIEW, PRICE_DROP, 
+                 BACK_IN_STOCK, ACCOUNT_VERIFIED, SECURITY_ALERT, 
+                 SYSTEM_ANNOUNCEMENT
+
+ReviewType: SELLER_REVIEW, BUYER_REVIEW
+
+================================================================================
+                            QUICK TEST SEQUENCE
+================================================================================
+
+# 1. Health Check
+curl http://localhost:8080/
+
+# 2. Register User
+curl -X POST http://localhost:8080/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+
+# 3. Verify Email (use OTP from console)
+curl -X POST http://localhost:8080/api/auth/verify \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","otp":"123456"}'
+
+# 4. Login (save the JWT token)
+curl -X POST http://localhost:8080/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","password":"password123"}'
+
+# 5. Get Profile (use JWT token from step 4)
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://localhost:8080/api/auth/me
+
+# 6. Browse Products
+curl http://localhost:8080/api/products
+
+# 7. Get Categories
+curl http://localhost:8080/api/categories
+
+================================================================================
+                                  NOTES
+================================================================================
+
+1. Replace YOUR_JWT_TOKEN with actual token from login response
+2. Replace YOUR_REFRESH_TOKEN with actual refresh token
+3. All timestamps are in ISO 8601 format (UTC)
+4. All prices are in INR (Indian Rupees)
+5. File uploads support PNG, JPG, JPEG formats
+6. Student verification only works with VIT email domains
+7. Products require admin approval before going live
+8. Seller badges are automatically calculated based on performance
+
+================================================================================
+                               END OF GUIDE
+================================================================================
