@@ -31,7 +31,8 @@ public class AdminAction {
     @Column(columnDefinition = "TEXT")
     private String reason;
 
-    @Column(columnDefinition = "JSON")
+    @Column(columnDefinition = "JSONB", nullable = true)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String details; // Additional action details as JSON
 
     @Column(length = 45)

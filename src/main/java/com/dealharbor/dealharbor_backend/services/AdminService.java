@@ -310,6 +310,7 @@ public class AdminService {
                 .targetType(targetType)
                 .targetId(targetId)
                 .reason(reason)
+                .details("{}") // Set empty JSON object
                 .build();
         adminActionRepository.save(action);
     }

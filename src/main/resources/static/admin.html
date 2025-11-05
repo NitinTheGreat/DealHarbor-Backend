@@ -1,1079 +1,494 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DealHarbor Admin Dashboard</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    :root {
-      --primary: #2563eb;
-      --danger: #dc2626;
-      --success: #16a34a;
-      --warning: #ea580c;
-      --gray-50: #f9fafb;
-      --gray-100: #f3f4f6;
-      --gray-200: #e5e7eb;
-      --gray-600: #4b5563;
-      --gray-800: #1f2937;
-      --gray-900: #111827;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: var(--gray-50);
-      color: var(--gray-900);
-    }
-    
-    .login-container {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    
-    .login-box {
-      background: white;
-      padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 400px;
-    }
-    
-    .login-box h1 {
-      margin-bottom: 10px;
-      font-size: 24px;
-    }
-    
-    .login-box p {
-      color: var(--gray-600);
-      margin-bottom: 30px;
-    }
-    
-    .form-group {
-      margin-bottom: 20px;
-    }
-    
-    .form-group label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      font-size: 14px;
-    }
-    
-    .form-group input {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    
-    .form-group input:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-    
-    .btn {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-      width: 100%;
-    }
-    
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-    
-    .btn-success {
-      background: var(--success);
-      color: white;
-    }
-    
-    .btn-danger {
-      background: var(--danger);
-      color: white;
-    }
-    
-    .btn-warning {
-      background: var(--warning);
-      color: white;
-    }
-    
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 13px;
-    }
-    
-    .alert {
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-    
-    .alert-error {
-      background: #fee2e2;
-      color: var(--danger);
-      border: 1px solid var(--danger);
-    }
-    
-    .alert-success {
-      background: #dcfce7;
-      color: var(--success);
-      border: 1px solid var(--success);
-    }
-    
-    /* Dashboard Layout */
-    .dashboard {
-      display: none;
-    }
-    
-    .sidebar {
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 250px;
-      height: 100vh;
-      background: var(--gray-900);
-      color: white;
-      padding: 20px;
-      overflow-y: auto;
-    }
-    
-    .sidebar h2 {
-      font-size: 20px;
-      margin-bottom: 30px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    
-    .nav-item {
-      padding: 12px 16px;
-      margin-bottom: 8px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .nav-item:hover {
-      background: rgba(255,255,255,0.1);
-    }
-    
-    .nav-item.active {
-      background: var(--primary);
-    }
-    
-    .main-content {
-      margin-left: 250px;
-      padding: 30px;
-    }
-    
-    .header {
-      background: white;
-      padding: 20px 30px;
-      border-radius: 12px;
-      margin-bottom: 30px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .header h1 {
-      font-size: 28px;
-    }
-    
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    
-    .stat-card {
-      background: white;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    
-    .stat-card h3 {
-      font-size: 14px;
-      color: var(--gray-600);
-      margin-bottom: 10px;
-    }
-    
-    .stat-card .value {
-      font-size: 32px;
-      font-weight: 700;
-      color: var(--gray-900);
-    }
-    
-    .card {
-      background: white;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
-    }
-    
-    .card h2 {
-      font-size: 20px;
-      margin-bottom: 20px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid var(--gray-200);
-    }
-    
-    .search-box {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    
-    .search-box input {
-      flex: 1;
-      padding: 10px 16px;
-      border: 1px solid var(--gray-200);
-      border-radius: 8px;
-    }
-    
-    .filters {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    
-    .filters select {
-      padding: 8px 12px;
-      border: 1px solid var(--gray-200);
-      border-radius: 8px;
-      background: white;
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    
-    table th {
-      background: var(--gray-50);
-      padding: 12px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--gray-600);
-      border-bottom: 2px solid var(--gray-200);
-    }
-    
-    table td {
-      padding: 12px;
-      border-bottom: 1px solid var(--gray-200);
-      font-size: 14px;
-    }
-    
-    table tr:hover {
-      background: var(--gray-50);
-    }
-    
-    .badge {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    
-    .badge-pending {
-      background: #fef3c7;
-      color: #92400e;
-    }
-    
-    .badge-approved {
-      background: #dcfce7;
-      color: #166534;
-    }
-    
-    .badge-rejected {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-    
-    .badge-sold {
-      background: var(--gray-200);
-      color: var(--gray-600);
-    }
-    
-    .actions {
-      display: flex;
-      gap: 8px;
-    }
-    
-    .hidden { display: none !important; }
-    
-    .pagination {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    
-    .pagination button {
-      padding: 8px 16px;
-      border: 1px solid var(--gray-200);
-      background: white;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    
-    .pagination button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    
-    .user-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-    }
-    
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: var(--gray-600);
-    }
-    
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--gray-600);
-    }
-    
-    .empty-state h3 {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
-    
-    img.thumbnail {
-      width: 60px;
-      height: 60px;
-      object-fit: cover;
-      border-radius: 6px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealHarbor Admin Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <!-- Login Screen -->
-  <div id="loginScreen" class="login-container">
-    <div class="login-box">
-      <h1>🛡️ Admin Dashboard</h1>
-      <p>Sign in with your admin credentials</p>
-      
-      <div id="loginError" class="alert alert-error hidden"></div>
-      
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" required placeholder="admin@dealharbor.com">
-        </div>
-        
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" required placeholder="Enter password">
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Sign In</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Dashboard -->
-  <div id="dashboardScreen" class="dashboard">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <h2>DealHarbor Admin</h2>
-      
-      <div class="nav-item active" onclick="showSection('overview')">
-        📊 Overview
-      </div>
-      <div class="nav-item" onclick="showSection('products')">
-        📦 Products
-      </div>
-      <div class="nav-item" onclick="showSection('users')">
-        👥 Users
-      </div>
-      <div class="nav-item" onclick="logout()">
-        🚪 Logout
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-      <div class="header">
-        <h1 id="pageTitle">Dashboard Overview</h1>
-        <div id="adminInfo"></div>
-      </div>
-
-      <!-- Overview Section -->
-      <div id="overviewSection" class="section">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <h3>Total Products</h3>
-            <div class="value" id="totalProducts">-</div>
-          </div>
-          <div class="stat-card">
-            <h3>Pending Approval</h3>
-            <div class="value" id="pendingProducts">-</div>
-          </div>
-          <div class="stat-card">
-            <h3>Total Users</h3>
-            <div class="value" id="totalUsers">-</div>
-          </div>
-          <div class="stat-card">
-            <h3>Active Today</h3>
-            <div class="value" id="activeToday">-</div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Quick Actions</h2>
-          <div class="actions">
-            <button class="btn btn-primary" onclick="showSection('products')">Review Pending Products</button>
-            <button class="btn btn-primary" onclick="showSection('users')">Manage Users</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Products Section -->
-      <div id="productsSection" class="section hidden">
-        <div class="card">
-          <h2>Product Management</h2>
-          
-          <div class="search-box">
-            <input type="text" id="productSearch" placeholder="Search products...">
-            <button class="btn btn-primary" onclick="searchProducts()">Search</button>
-          </div>
-
-          <div class="filters">
-            <select id="productStatusFilter" onchange="loadProducts()">
-              <option value="">All Status</option>
-              <option value="PENDING" selected>Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="SOLD">Sold</option>
-            </select>
-            
-            <button class="btn btn-sm" onclick="loadProducts()">Refresh</button>
-          </div>
-
-          <div id="productsLoading" class="loading hidden">Loading...</div>
-          <div id="productsEmpty" class="empty-state hidden">
-            <h3>No products found</h3>
-            <p>Try changing the filters</p>
-          </div>
-
-          <table id="productsTable" class="hidden">
-            <thead>
-              <tr>
-                <th>Image</th>
-                <th>Title</th>
-                <th>Price</th>
-                <th>Seller</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="productsBody"></tbody>
-          </table>
-
-          <div id="productsPagination" class="pagination hidden"></div>
-        </div>
-      </div>
-
-      <!-- Users Section -->
-      <div id="usersSection" class="section hidden">
-        <div class="card">
-          <h2>User Management</h2>
-          
-          <div class="search-box">
-            <input type="text" id="userSearch" placeholder="Search users...">
-            <button class="btn btn-primary" onclick="searchUsers()">Search</button>
-          </div>
-
-          <div class="filters">
-            <select id="userFilter" onchange="loadUsers()">
-              <option value="all">All Users</option>
-              <option value="verified">Verified Students</option>
-              <option value="banned">Banned</option>
-            </select>
-            
-            <button class="btn btn-sm" onclick="loadUsers()">Refresh</button>
-          </div>
-
-          <div id="usersLoading" class="loading hidden">Loading...</div>
-          <div id="usersEmpty" class="empty-state hidden">
-            <h3>No users found</h3>
-            <p>Try changing the filters</p>
-          </div>
-
-          <table id="usersTable" class="hidden">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Verified</th>
-                <th>Joined</th>
-                <th>Listings</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="usersBody"></tbody>
-          </table>
-
-          <div id="usersPagination" class="pagination hidden"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const API_BASE = 'http://localhost:8080/api';
-    let currentUser = null;
-    let currentPage = { products: 0, users: 0 };
-
-    // Auth Functions
-    async function login(e) {
-      e.preventDefault();
-      
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      
-      try {
-        const response = await fetch(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-
-        if (!response.ok) {
-          throw new Error('Invalid credentials');
-        }
-
-        const data = await response.json();
-        
-        // Extract user from response (login returns {message, user})
-        const user = data.user || data;
-        
-        // Check if user is admin
-        if (user.role !== 'ADMIN') {
-          throw new Error('Access denied. Admin role required.');
-        }
-
-        currentUser = user;
-        showDashboard();
-      } catch (error) {
-        const errorEl = document.getElementById('loginError');
-        errorEl.textContent = error.message;
-        errorEl.classList.remove('hidden');
-      }
-    }
-
-    async function logout() {
-      try {
-        await fetch(`${API_BASE}/auth/logout`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-      } catch (error) {
-        console.error('Logout error:', error);
-      }
-      
-      currentUser = null;
-      document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('dashboardScreen').style.display = 'none';
-    }
-
-    function showDashboard() {
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('dashboardScreen').style.display = 'block';
-      document.getElementById('adminInfo').textContent = `👤 ${currentUser.name}`;
-      
-      loadDashboardStats();
-      showSection('overview');
-    }
-
-    // Navigation
-    function showSection(section) {
-      // Update nav items
-      document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-      });
-      event?.target?.classList.add('active');
-
-      // Hide all sections
-      document.querySelectorAll('.section').forEach(sec => {
-        sec.classList.add('hidden');
-      });
-
-      // Show selected section
-      const sectionMap = {
-        'overview': 'overviewSection',
-        'products': 'productsSection',
-        'users': 'usersSection'
-      };
-
-      document.getElementById(sectionMap[section]).classList.remove('hidden');
-
-      // Update page title
-      const titles = {
-        'overview': 'Dashboard Overview',
-        'products': 'Product Management',
-        'users': 'User Management'
-      };
-      document.getElementById('pageTitle').textContent = titles[section];
-
-      // Load data
-      if (section === 'products') {
-        loadProducts();
-      } else if (section === 'users') {
-        loadUsers();
-      }
-    }
-
-    // Dashboard Stats
-    async function loadDashboardStats() {
-      try {
-        const response = await fetch(`${API_BASE}/admin/dashboard`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to load stats');
-
-        const stats = await response.json();
-        
-        document.getElementById('totalProducts').textContent = stats.totalProducts || 0;
-        document.getElementById('pendingProducts').textContent = stats.pendingApprovalProducts || 0;
-        document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
-        document.getElementById('activeToday').textContent = stats.activeUsersToday || 0;
-      } catch (error) {
-        console.error('Error loading stats:', error);
-      }
-    }
-
-    // Products Management
-    async function loadProducts() {
-      const status = document.getElementById('productStatusFilter').value;
-      const page = currentPage.products;
-      
-      showLoading('products');
-
-      try {
-        let url = `${API_BASE}/admin/products?page=${page}&size=20&sortBy=date_desc`;
-        if (status) url += `&status=${status}`;
-
-        const response = await fetch(url, { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to load products');
-
-        const data = await response.json();
-        renderProducts(data);
-      } catch (error) {
-        console.error('Error loading products:', error);
-        showEmpty('products');
-      }
-    }
-
-    function renderProducts(data) {
-      const tbody = document.getElementById('productsBody');
-      tbody.innerHTML = '';
-
-      if (!data.content || data.content.length === 0) {
-        showEmpty('products');
-        return;
-      }
-
-      hideLoading('products');
-      document.getElementById('productsTable').classList.remove('hidden');
-
-      data.content.forEach(product => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>
-            ${product.primaryImageUrl 
-              ? `<img src="${API_BASE.replace('/api', '')}${product.primaryImageUrl}" class="thumbnail" alt="${product.title}">` 
-              : '<div class="thumbnail" style="background:#e5e7eb"></div>'}
-          </td>
-          <td>
-            <strong>${product.title}</strong><br>
-            <small style="color:#6b7280">${product.categoryName}</small>
-          </td>
-          <td>₹${product.price.toLocaleString('en-IN')}</td>
-          <td>${product.sellerName}</td>
-          <td><span class="badge badge-${product.status.toLowerCase()}">${product.status}</span></td>
-          <td>${new Date(product.createdAt).toLocaleDateString()}</td>
-          <td>
-            <div class="actions">
-              ${product.status === 'PENDING' ? `
-                        <button class="btn btn-sm btn-success" onclick="approveProduct('${product.id}')">Approve</button>
-                        <button class="btn btn-sm btn-danger" onclick="rejectProduct('${product.id}')">Reject</button>
-                      ` : ''}
-                      <button class="btn btn-sm" onclick="viewProduct('${product.id}')">View</button>
-                      ${product.status !== 'DELETED' ? `
-                        <button class="btn btn-sm" onclick="toggleFeatured('${product.id}', ${product.isFeatured})">${product.isFeatured ? 'Unfeature' : 'Feature'}</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteProduct('${product.id}')">Delete</button>
-                      ` : ''}
+<body class="bg-gray-100">
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-blue-600 mb-2"> DealHarbor</h1>
+                <p class="text-gray-600">Admin Portal</p>
             </div>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
+            <div id="loginError" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded"></div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                    <input type="email" id="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="admin@dealharbor.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="">
+                </div>
+                <button type="submit" id="loginBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
 
-      renderPagination('products', data);
-    }
-
-    async function approveProduct(productId) {
-      if (!confirm('Approve this product?')) return;
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'APPROVED' })
-        });
-
-        if (!response.ok) throw new Error('Failed to approve');
-
-        alert('Product approved successfully!');
-        loadProducts();
-        loadDashboardStats();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function rejectProduct(productId) {
-      const reason = prompt('Reason for rejection (optional):');
-      if (reason === null) return;
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'REJECTED', reason })
-        });
-
-        if (!response.ok) throw new Error('Failed to reject');
-
-        alert('Product rejected!');
-        loadProducts();
-        loadDashboardStats();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    function viewProduct(productId) {
-      window.open(`http://localhost:8080/api/products/${productId}`, '_blank');
-    }
-
-    async function toggleFeatured(productId, isCurrentlyFeatured) {
-      try {
-        const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isFeatured: !isCurrentlyFeatured })
-        });
-
-        if (!response.ok) throw new Error('Failed to update featured status');
-
-        alert('Featured status updated.');
-        loadProducts();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function deleteProduct(productId) {
-      if (!confirm('Delete this product? This cannot be undone.')) return;
-      try {
-        const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'DELETED', reason: 'Removed by admin' })
-        });
-
-        if (!response.ok) throw new Error('Failed to delete product');
-
-        alert('Product deleted.');
-        loadProducts();
-        loadDashboardStats();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function searchProducts() {
-      const keyword = document.getElementById('productSearch').value.trim();
-      if (!keyword) {
-        loadProducts();
-        return;
-      }
-
-      showLoading('products');
-
-      try {
-        const response = await fetch(
-          `${API_BASE}/admin/products/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
-          { credentials: 'include' }
-        );
-
-        if (!response.ok) throw new Error('Search failed');
-
-        const data = await response.json();
-        renderProducts(data);
-      } catch (error) {
-        console.error('Search error:', error);
-        showEmpty('products');
-      }
-    }
-
-    // Users Management
-    async function loadUsers() {
-      const filter = document.getElementById('userFilter').value;
-      const page = currentPage.users;
-      
-      showLoading('users');
-
-      try {
-        const response = await fetch(
-          `${API_BASE}/admin/users?filter=${filter}&page=${page}&size=20`,
-          { credentials: 'include' }
-        );
-
-        if (!response.ok) throw new Error('Failed to load users');
-
-        const data = await response.json();
-        renderUsers(data);
-      } catch (error) {
-        console.error('Error loading users:', error);
-        showEmpty('users');
-      }
-    }
-
-    function renderUsers(data) {
-      const tbody = document.getElementById('usersBody');
-      tbody.innerHTML = '';
-
-      if (!data.content || data.content.length === 0) {
-        showEmpty('users');
-        return;
-      }
-
-      hideLoading('users');
-      document.getElementById('usersTable').classList.remove('hidden');
-
-      data.content.forEach(user => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${user.name}</td>
-          <td>${user.email}</td>
-          <td><span class="badge badge-${user.role === 'ADMIN' ? 'approved' : 'pending'}">${user.role}</span></td>
-          <td>${user.isVerifiedStudent ? '✅ Yes' : '❌ No'}</td>
-          <td>${new Date(user.createdAt).toLocaleDateString()}</td>
-          <td>${user.totalListings || 0}</td>
-          <td>
-            <div class="actions">
-              ${!user.isBanned ? `
-                <button class="btn btn-sm btn-danger" onclick="banUser('${user.id}')">Ban</button>
-              ` : `
-                <button class="btn btn-sm btn-success" onclick="unbanUser('${user.id}')">Unban</button>
-              `}
-              <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.id}')">Delete</button>
+    <div id="dashboardScreen" class="hidden min-h-screen flex">
+        <aside class="w-64 bg-white border-r">
+            <div class="p-6">
+                <h2 class="text-2xl font-bold text-blue-600">DealHarbor</h2>
+                <p class="text-sm text-gray-600">Admin Portal</p>
             </div>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
+            <nav class="px-4">
+                <a href="#" class="nav-link active flex items-center px-4 py-3 text-gray-700 rounded-lg mb-2" data-view="dashboard">
+                    <span class="mr-3"></span> Dashboard
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 rounded-lg mb-2" data-view="products">
+                    <span class="mr-3"></span> Products
+                </a>
+                <button id="logoutBtn" class="w-full mt-8 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                     Logout
+                </button>
+            </nav>
+        </aside>
 
-      renderPagination('users', data);
-    }
+        <main class="flex-1 overflow-y-auto">
+            <div class="bg-white border-b px-8 py-4 flex justify-between items-center">
+                <h1 id="pageTitle" class="text-2xl font-bold">Dashboard</h1>
+                <div class="flex items-center space-x-3">
+                    <div id="userAvatar" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">A</div>
+                    <div>
+                        <div id="userName" class="font-semibold text-sm">Admin</div>
+                        <div class="text-xs text-gray-600">Administrator</div>
+                    </div>
+                </div>
+            </div>
 
-    async function deleteUser(userId) {
-      if (!confirm('Delete this user and all their listings? This action is reversible only via DB.')) return;
-      try {
-        const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'DELETE_ACCOUNT', reason: 'Deleted by admin' })
+            <div class="p-8">
+                <div id="dashboardView" class="view">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
+                            <div class="text-sm text-gray-600 mb-2">Total Users</div>
+                            <div id="statTotalUsers" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
+                            <div class="text-sm text-gray-600 mb-2">Approved Products</div>
+                            <div id="statApprovedProducts" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-yellow-500">
+                            <div class="text-sm text-gray-600 mb-2">Pending Products</div>
+                            <div id="statPendingProducts" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-red-500">
+                            <div class="text-sm text-gray-600 mb-2">Total Orders</div>
+                            <div id="statTotalOrders" class="text-3xl font-bold">0</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow">
+                        <div class="px-6 py-4 border-b">
+                            <h2 class="text-xl font-semibold">Recent Products</h2>
+                        </div>
+                        <div id="dashboardProductsLoading" class="p-12 text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                        </div>
+                        <div id="dashboardProductsTable"></div>
+                    </div>
+                </div>
+
+                <div id="productsView" class="view hidden">
+                    <div class="bg-white rounded-xl shadow">
+                        <div class="px-6 py-4 border-b flex flex-wrap justify-between items-center gap-4">
+                            <h2 class="text-xl font-semibold">Product Management</h2>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="all">All</button>
+                                <button class="filter-btn active px-4 py-2 rounded-lg border-2" data-status="PENDING">Pending</button>
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="APPROVED">Approved</button>
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="REJECTED">Rejected</button>
+                                <input type="text" id="productSearch" class="px-4 py-2 border-2 rounded-lg" placeholder="Search products...">
+                            </div>
+                        </div>
+                        <div id="productsLoading" class="p-12 text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                        </div>
+                        <div id="productsTable"></div>
+                        <div id="productsPagination" class="px-6 py-4 border-t flex justify-center items-center space-x-4"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="productModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Product Details</h3>
+                <button onclick="closeProductModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="modalBody" class="px-6 py-4"></div>
+            <div class="px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeProductModal()" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Close</button>
+                <button class="btn-approve px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="approveProduct()"> Approve</button>
+                <button class="btn-reject px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onclick="rejectProduct()"> Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .nav-link.active { background: #2563eb; color: white; }
+        .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .filter-btn { border-color: #e5e7eb; }
+        .filter-btn:hover { border-color: #2563eb; }
+    </style>
+
+    <script>
+        const API_BASE = "http://localhost:8080/api";
+        let currentUser = null, currentProduct = null, currentPage = 0, currentStatus = "PENDING";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            checkAuth();
+            document.getElementById("loginForm").addEventListener("submit", handleLogin);
+            document.getElementById("logoutBtn").addEventListener("click", handleLogout);
+            document.querySelectorAll(".nav-link").forEach(link => {
+                link.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    switchView(link.getAttribute("data-view"));
+                });
+            });
+            document.querySelectorAll(".filter-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    currentStatus = btn.getAttribute("data-status") === "all" ? null : btn.getAttribute("data-status");
+                    currentPage = 0;
+                    loadProducts();
+                });
+            });
+            let searchTimeout;
+            document.getElementById("productSearch").addEventListener("input", (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchProducts(e.target.value), 500);
+            });
         });
 
-        if (!response.ok) throw new Error('Failed to delete user');
-
-        alert('User deleted.');
-        loadUsers();
-        loadDashboardStats();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function banUser(userId) {
-      const reason = prompt('Reason for ban:');
-      if (!reason) return;
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'BAN', reason })
-        });
-
-        if (!response.ok) throw new Error('Failed to ban user');
-
-        alert('User banned successfully!');
-        loadUsers();
-        loadDashboardStats();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function unbanUser(userId) {
-      if (!confirm('Unban this user?')) return;
-
-      try {
-        const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'UNBAN' })
-        });
-
-        if (!response.ok) throw new Error('Failed to unban user');
-
-        alert('User unbanned successfully!');
-        loadUsers();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function searchUsers() {
-      const keyword = document.getElementById('userSearch').value.trim();
-      if (!keyword) {
-        loadUsers();
-        return;
-      }
-
-      showLoading('users');
-
-      try {
-        const response = await fetch(
-          `${API_BASE}/admin/users/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
-          { credentials: 'include' }
-        );
-
-        if (!response.ok) throw new Error('Search failed');
-
-        const data = await response.json();
-        renderUsers(data);
-      } catch (error) {
-        console.error('Search error:', error);
-        showEmpty('users');
-      }
-    }
-
-    // Pagination (adapted to backend PagedResponse fields: page, size, totalElements, totalPages, first, last)
-    function renderPagination(type, data) {
-      const container = document.getElementById(`${type}Pagination`);
-      container.classList.remove('hidden');
-
-      const page = data.page ?? 0;
-      const totalPages = data.totalPages ?? 1;
-      const isFirst = data.first === true;
-      const isLast = data.last === true;
-
-      container.innerHTML = `
-        <button ${isFirst ? 'disabled' : ''} onclick="changePage('${type}', ${page - 1})">Previous</button>
-        <span>Page ${page + 1} of ${totalPages}</span>
-        <button ${isLast ? 'disabled' : ''} onclick="changePage('${type}', ${page + 1})">Next</button>
-      `;
-    }
-
-    function changePage(type, page) {
-      if (page < 0) page = 0;
-      if (type === 'products') {
-        currentPage.products = page;
-        loadProducts();
-      } else if (type === 'users') {
-        currentPage.users = page;
-        loadUsers();
-      }
-    }
-
-    // UI Helpers
-    function showLoading(type) {
-      document.getElementById(`${type}Loading`).classList.remove('hidden');
-      document.getElementById(`${type}Table`).classList.add('hidden');
-      document.getElementById(`${type}Empty`).classList.add('hidden');
-      document.getElementById(`${type}Pagination`).classList.add('hidden');
-    }
-
-    function hideLoading(type) {
-      document.getElementById(`${type}Loading`).classList.add('hidden');
-    }
-
-    function showEmpty(type) {
-      hideLoading(type);
-      document.getElementById(`${type}Empty`).classList.remove('hidden');
-      document.getElementById(`${type}Table`).classList.add('hidden');
-      document.getElementById(`${type}Pagination`).classList.add('hidden');
-    }
-
-    // Init
-    document.getElementById('loginForm').addEventListener('submit', login);
-    
-    // Check if already logged in
-    (async function checkAuth() {
-      try {
-        const response = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
-        if (response.ok) {
-          const user = await response.json();
-          if (user.role === 'ADMIN') {
-            currentUser = user;
-            showDashboard();
-          }
+        async function checkAuth() {
+            try {
+                const response = await fetch(API_BASE + "/auth/me", { credentials: "include" });
+                if (response.ok) {
+                    currentUser = await response.json();
+                    if (currentUser.role !== "ADMIN") {
+                        showError("Access denied. Admin privileges required.");
+                        return;
+                    }
+                    showDashboard();
+                    loadDashboardStats();
+                    loadRecentProducts();
+                } else {
+                    showLogin();
+                }
+            } catch (error) {
+                console.error("Auth check failed:", error);
+                showLogin();
+            }
         }
-      } catch (error) {
-        // Not logged in, show login screen
-      }
-    })();
-  </script>
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const loginBtn = document.getElementById("loginBtn");
+            const errorDiv = document.getElementById("loginError");
+            loginBtn.disabled = true;
+            loginBtn.textContent = "Signing in...";
+            errorDiv.classList.add("hidden");
+            try {
+                const response = await fetch(API_BASE + "/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ email, password })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.user;
+                    if (currentUser.role !== "ADMIN") {
+                        throw new Error("Access denied. Admin privileges required.");
+                    }
+                    showDashboard();
+                    loadDashboardStats();
+                    loadRecentProducts();
+                } else {
+                    const error = await response.text();
+                    throw new Error(error || "Login failed");
+                }
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove("hidden");
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = "Sign In";
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await fetch(API_BASE + "/auth/logout", { method: "POST", credentials: "include" });
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+            currentUser = null;
+            showLogin();
+        }
+
+        function showLogin() {
+            document.getElementById("loginScreen").classList.remove("hidden");
+            document.getElementById("dashboardScreen").classList.add("hidden");
+        }
+
+        function showDashboard() {
+            document.getElementById("loginScreen").classList.add("hidden");
+            document.getElementById("dashboardScreen").classList.remove("hidden");
+            if (currentUser) {
+                document.getElementById("userName").textContent = currentUser.name;
+                document.getElementById("userAvatar").textContent = currentUser.name.charAt(0).toUpperCase();
+            }
+        }
+
+        function switchView(view) {
+            document.querySelectorAll(".nav-link").forEach(link => {
+                link.classList.toggle("active", link.getAttribute("data-view") === view);
+            });
+            document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+            document.getElementById(view + "View").classList.remove("hidden");
+            document.getElementById("pageTitle").textContent = view === "dashboard" ? "Dashboard" : "Product Management";
+            if (view === "products") loadProducts();
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch(API_BASE + "/admin/dashboard", { credentials: "include" });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById("statTotalUsers").textContent = stats.totalUsers;
+                    document.getElementById("statApprovedProducts").textContent = stats.approvedProducts;
+                    document.getElementById("statPendingProducts").textContent = stats.pendingProducts;
+                    document.getElementById("statTotalOrders").textContent = stats.totalOrders;
+                }
+            } catch (error) {
+                console.error("Failed to load stats:", error);
+            }
+        }
+
+        async function loadRecentProducts() {
+            try {
+                const response = await fetch(API_BASE + "/admin/products?page=0&size=5&sortBy=date_desc", { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "dashboardProductsTable");
+                    document.getElementById("dashboardProductsLoading").style.display = "none";
+                }
+            } catch (error) {
+                console.error("Failed to load recent products:", error);
+            }
+        }
+
+        async function loadProducts() {
+            document.getElementById("productsLoading").classList.remove("hidden");
+            document.getElementById("productsTable").innerHTML = "";
+            document.getElementById("productsPagination").innerHTML = "";
+            try {
+                let url = API_BASE + "/admin/products?page=" + currentPage + "&size=20&sortBy=date_desc";
+                if (currentStatus) url += "&status=" + currentStatus;
+                const response = await fetch(url, { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "productsTable");
+                    renderPagination(data);
+                    document.getElementById("productsLoading").classList.add("hidden");
+                }
+            } catch (error) {
+                console.error("Failed to load products:", error);
+            }
+        }
+
+        async function searchProducts(keyword) {
+            if (!keyword.trim()) {
+                loadProducts();
+                return;
+            }
+            document.getElementById("productsLoading").classList.remove("hidden");
+            try {
+                const response = await fetch(API_BASE + "/admin/products/search?keyword=" + encodeURIComponent(keyword) + "&page=0&size=20", { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "productsTable");
+                    document.getElementById("productsLoading").classList.add("hidden");
+                }
+            } catch (error) {
+                console.error("Search failed:", error);
+            }
+        }
+
+        function renderProductsTable(products, containerId) {
+            const container = document.getElementById(containerId);
+            if (!products || products.length === 0) {
+                container.innerHTML = `<div class="p-12 text-center text-gray-600">No products found</div>`;
+                return;
+            }
+            const tableHTML = `<table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Product</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Seller</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Price</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Created</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${products.map(product => `<tr><td class="px-6 py-4"><div class="flex items-center"><img src="${product.primaryImageUrl ? "http://localhost:8080" + product.primaryImageUrl : "/api/images/default-product.png"}" alt="${product.title}" class="w-16 h-16 rounded-lg object-cover mr-4" onerror="this.src='/api/images/default-product.png'"><div><div class="font-medium">${product.title}</div><div class="text-sm text-gray-500">${product.categoryName}</div></div></div></td><td class="px-6 py-4">${product.sellerName}</td><td class="px-6 py-4">₹${product.price.toLocaleString("en-IN")}</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : product.status === "REJECTED" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}">${product.status}</span></td><td class="px-6 py-4">${new Date(product.createdAt).toLocaleDateString()}</td><td class="px-6 py-4"><div class="flex space-x-2"><button onclick="viewProduct('${product.id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">View</button>${product.status === "PENDING" ? `<button onclick="quickApprove('${product.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button><button onclick="quickReject('${product.id}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>` : ""}</div></td></tr>`).join("")}</tbody></table>`;
+            container.innerHTML = tableHTML;
+        }
+
+        function renderPagination(data) {
+            const container = document.getElementById("productsPagination");
+            container.innerHTML = `<button ${data.first ? "disabled" : ""} onclick="changePage(${currentPage - 1})" class="px-4 py-2 border rounded ${data.first ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}">Previous</button><span>Page ${data.page + 1} of ${data.totalPages}</span><button ${data.last ? "disabled" : ""} onclick="changePage(${currentPage + 1})" class="px-4 py-2 border rounded ${data.last ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}">Next</button>`;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            loadProducts();
+        }
+
+        async function viewProduct(productId) {
+            try {
+                const response = await fetch(API_BASE + "/products/" + productId, { credentials: "include" });
+                if (response.ok) {
+                    currentProduct = await response.json();
+                    showProductModal(currentProduct);
+                }
+            } catch (error) {
+                console.error("Failed to load product:", error);
+                alert("Failed to load product details");
+            }
+        }
+
+        function showProductModal(product) {
+            const modal = document.getElementById("productModal");
+            const modalBody = document.getElementById("modalBody");
+            const images = product.images && product.images.length > 0 ? product.images.map(img => `<img src="http://localhost:8080${img.imageUrl}" alt="${product.title}" class="w-full max-w-md rounded-lg mb-4" onerror="this.style.display='none'">`).join("") : '<p class="text-gray-600">No images available</p>';
+            modalBody.innerHTML = `<div class="mb-6">${images}</div><h3 class="text-2xl font-bold mb-4">${product.title}</h3><p class="mb-4 text-gray-700">${product.description}</p><div class="grid grid-cols-2 gap-4 mb-4"><div><strong class="block text-sm text-gray-600">Price</strong><span class="text-2xl font-bold text-green-600">₹${product.price.toLocaleString("en-IN")}</span></div><div><strong class="block text-sm text-gray-600">Condition</strong><span>${product.condition}</span></div><div><strong class="block text-sm text-gray-600">Seller</strong><span>${product.sellerName}</span></div><div><strong class="block text-sm text-gray-600">Category</strong><span>${product.categoryName}</span></div><div><strong class="block text-sm text-gray-600">Status</strong><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}">${product.status}</span></div><div><strong class="block text-sm text-gray-600">Views</strong><span>${product.viewCount}</span></div></div>${product.brand ? `<p><strong>Brand:</strong> ${product.brand}</p>` : ""}${product.model ? `<p><strong>Model:</strong> ${product.model}</p>` : ""}${product.pickupLocation ? `<p><strong>Pickup:</strong> ${product.pickupLocation}</p>` : ""}${product.adminNotes ? `<div class="mt-4 p-4 bg-gray-50 rounded-lg"><strong class="block mb-2">Admin Notes:</strong><p class="text-gray-700">${product.adminNotes}</p></div>` : ""}`;
+            const approveBtn = modal.querySelector(".btn-approve");
+            const rejectBtn = modal.querySelector(".btn-reject");
+            if (product.status === "PENDING") {
+                approveBtn.classList.remove("hidden");
+                rejectBtn.classList.remove("hidden");
+            } else if (product.status === "APPROVED") {
+                approveBtn.classList.add("hidden");
+                rejectBtn.classList.remove("hidden");
+            } else if (product.status === "REJECTED") {
+                approveBtn.classList.remove("hidden");
+                rejectBtn.classList.add("hidden");
+            } else {
+                approveBtn.classList.add("hidden");
+                rejectBtn.classList.add("hidden");
+            }
+            modal.classList.remove("hidden");
+        }
+
+        function closeProductModal() {
+            document.getElementById("productModal").classList.add("hidden");
+            currentProduct = null;
+        }
+
+        async function quickApprove(productId) {
+            if (!confirm("Approve this product?")) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + productId, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "APPROVED" })
+                });
+                if (response.ok) {
+                    alert("Product approved!");
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed: " + error);
+                }
+            } catch (error) {
+                console.error("Approve failed:", error);
+                alert("Failed to approve product");
+            }
+        }
+
+        async function quickReject(productId) {
+            const reason = prompt("Rejection reason (optional):");
+            if (reason === null) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + productId, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "REJECTED", reason: reason, adminNotes: reason })
+                });
+                if (response.ok) {
+                    alert("Product rejected.");
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed: " + error);
+                }
+            } catch (error) {
+                console.error("Reject failed:", error);
+                alert("Failed to reject product");
+            }
+        }
+
+        async function approveProduct() {
+            if (!currentProduct) return;
+            const notes = prompt("Add admin notes (optional):");
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + currentProduct.id, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "APPROVED", adminNotes: notes || undefined })
+                });
+                if (response.ok) {
+                    alert("Product approved successfully!");
+                    closeProductModal();
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed to approve product: " + error);
+                }
+            } catch (error) {
+                console.error("Approve failed:", error);
+                alert("Failed to approve product");
+            }
+        }
+
+        async function rejectProduct() {
+            if (!currentProduct) return;
+            const reason = prompt("Rejection reason (required):");
+            if (!reason) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + currentProduct.id, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "REJECTED", reason: reason, adminNotes: reason })
+                });
+                if (response.ok) {
+                    alert("Product rejected.");
+                    closeProductModal();
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed to reject product: " + error);
+                }
+            } catch (error) {
+                console.error("Reject failed:", error);
+                alert("Failed to reject product");
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById("loginError");
+            errorDiv.textContent = message;
+            errorDiv.classList.remove("hidden");
+        }
+    </script>
 </body>
 </html>

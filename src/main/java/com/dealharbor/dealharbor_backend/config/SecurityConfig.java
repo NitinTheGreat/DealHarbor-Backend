@@ -68,10 +68,18 @@ public class SecurityConfig {
                     "/api/auth/reset-password",
                     "/api/auth/check-email",
                     "/api/auth/test",
+                    "/api/auth/profile",
+                    "/api/auth/me",
                     "/api/images/**",
+                    "/api/products",
+                    "/api/products/**",
+                    "/api/categories",
+                    "/api/categories/**",
                     "/oauth2/**",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
+                    "/admin.html",
+                    "/index.html",
                     "/error"
                 ).permitAll()
                 .anyRequest().authenticated()
@@ -94,11 +102,14 @@ public class SecurityConfig {
             "http://127.0.0.1:8080",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
             "null" // allow file:// origins which appear as 'null'
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie"));
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -116,15 +127,16 @@ public class SecurityConfig {
         return authConfig.getAuthenticationManager();
     }
 
-    // Optional: Tune cookie flags if testing from a different origin (e.g., frontend on :3000).
-    // For strict browser cross-site cookies, set SameSite=None and secure=true under HTTPS.
+    // Cookie configuration for cross-origin requests
+    // Using SameSite=None to allow cookies to be sent from different origins (e.g., frontend on :3001)
+    // Note: SameSite=None requires Secure flag, but we're in development so using null for now
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
         serializer.setCookieName("SESSION");
-        serializer.setUseHttpOnlyCookie(true);
-        serializer.setSameSite("Lax"); // change to "None" if doing cross-site in HTTPS
-        // serializer.setUseSecureCookie(true); // enable under HTTPS when SameSite=None
+        serializer.setUseHttpOnlyCookie(false); // Set to false to allow JavaScript access if needed
+        serializer.setSameSite(null); // Allow cross-origin cookies in development
+        serializer.setUseSecureCookie(false); // Set to false for HTTP (development)
         serializer.setCookiePath("/");
         return serializer;
     }
