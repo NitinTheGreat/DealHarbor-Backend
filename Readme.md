@@ -1,6 +1,6 @@
 .\mvnw spring-boot:run
 docker run -d --name redis-local -p 6379:6379 redis:latest
-
+http://localhost:8080/admin.html
 # DealHarbor Backend Application
  * 
  * An intra-university e-commerce platform built with Spring Boot 3.x and PostgreSQL (Supabase).
