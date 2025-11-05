@@ -76,53 +76,67 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         ProductStatus oldStatus = product.getStatus();
-        
+
+        boolean statusChanged = request.getStatus() != null && request.getStatus() != oldStatus;
+        boolean featuredChanged = request.getIsFeatured() != null && (product.getIsFeatured() != request.getIsFeatured());
+        boolean notesChanged = request.getAdminNotes() != null && !request.getAdminNotes().equals(product.getAdminNotes());
+
         // Update product status
-        if (request.getStatus() != null) {
+        if (statusChanged) {
             product.setStatus(request.getStatus());
             product.setApprovedBy(admin);
             product.setApprovedAt(Instant.now());
         }
-        
+
         // Update featured status
-        if (request.getIsFeatured() != null) {
+        if (featuredChanged) {
             product.setIsFeatured(request.getIsFeatured());
         }
-        
+
         // Update admin notes
         if (request.getAdminNotes() != null) {
             product.setAdminNotes(request.getAdminNotes());
         }
-        
+
         product.setUpdatedAt(Instant.now());
         product = productRepository.save(product);
-        
-        // Record admin action
-        recordAdminAction(admin, "PRODUCT_" + request.getStatus(), "PRODUCT", productId, request.getReason());
-        
-        // Notify seller
-        String notificationTitle = getProductNotificationTitle(request.getStatus());
-        String notificationMessage = getProductNotificationMessage(product.getTitle(), request.getStatus(), request.getReason());
-        
-        notificationService.createNotification(
-                product.getSeller().getId(),
-                notificationTitle,
-                notificationMessage,
-                getProductNotificationType(request.getStatus()),
-                "/products/" + productId,
-                productId,
-                "PRODUCT"
-        );
-        
-        // Send email for important status changes
-        if (request.getStatus() == ProductStatus.APPROVED || request.getStatus() == ProductStatus.REJECTED) {
-            emailService.sendProductStatusUpdate(
-                    product.getSeller().getEmail(),
-                    product.getSeller().getName(),
-                    product.getTitle(),
-                    request.getStatus().getDisplayName(),
-                    request.getReason()
+
+        // Record admin action(s)
+        if (statusChanged) {
+            recordAdminAction(admin, "PRODUCT_" + request.getStatus(), "PRODUCT", productId, request.getReason());
+        }
+        if (featuredChanged) {
+            recordAdminAction(admin, request.getIsFeatured() ? "PRODUCT_FEATURE_ON" : "PRODUCT_FEATURE_OFF", "PRODUCT", productId, null);
+        }
+        if (notesChanged && !statusChanged && !featuredChanged) {
+            recordAdminAction(admin, "PRODUCT_NOTE_UPDATED", "PRODUCT", productId, request.getAdminNotes());
+        }
+
+        // Notify seller only when status changes to a meaningful state
+        if (statusChanged) {
+            String notificationTitle = getProductNotificationTitle(request.getStatus());
+            String notificationMessage = getProductNotificationMessage(product.getTitle(), request.getStatus(), request.getReason());
+
+            notificationService.createNotification(
+                    product.getSeller().getId(),
+                    notificationTitle,
+                    notificationMessage,
+                    getProductNotificationType(request.getStatus()),
+                    "/products/" + productId,
+                    productId,
+                    "PRODUCT"
             );
+
+            // Send email for important status changes
+            if (request.getStatus() == ProductStatus.APPROVED || request.getStatus() == ProductStatus.REJECTED) {
+                emailService.sendProductStatusUpdate(
+                        product.getSeller().getEmail(),
+                        product.getSeller().getName(),
+                        product.getTitle(),
+                        request.getStatus().getDisplayName(),
+                        request.getReason()
+                );
+            }
         }
         
         return convertToProductResponse(product);

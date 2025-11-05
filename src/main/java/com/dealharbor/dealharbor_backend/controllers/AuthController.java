@@ -52,7 +52,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req,
+    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest req,
                                    HttpServletRequest request,
                                    HttpServletResponse response) {
         Authentication authentication = authService.login(req, request);
@@ -70,7 +70,12 @@ public class AuthController {
         request.changeSessionId();
         securityContextRepository.saveContext(context, request, response);
 
-        return ResponseEntity.ok("Logged in successfully.");
+        // Return JSON payload with message and user profile so clients reliably parse the response
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("message", "Logged in successfully");
+        payload.put("user", authService.getCurrentUser(authentication));
+
+        return ResponseEntity.ok(payload);
     }
 
     @PostMapping("/forgot-password")
@@ -135,7 +140,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpSession session,
+    public ResponseEntity<Map<String, Object>> logout(HttpSession session,
                     HttpServletRequest request,
                     HttpServletResponse response) {
     // Invalidate server-side session (removes it from Redis via Spring Session)
@@ -162,10 +167,13 @@ public class AuthController {
         .sameSite("Lax")
         .build();
 
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("message", "Logged out successfully");
+
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
         .header(HttpHeaders.SET_COOKIE, jsessionCookie.toString())
-        .body("Logged out successfully.");
+        .body(payload);
     }
 
     @PostMapping("/change-password")
