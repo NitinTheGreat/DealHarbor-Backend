@@ -32,6 +32,7 @@ public class AdminService {
     private final AdminActionRepository adminActionRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final ProductService productService;
 
     // ✅ ADMIN DASHBOARD
     public AdminDashboardResponse getDashboardStats() {
@@ -464,5 +465,53 @@ public class AdminService {
         }
         
         return admin;
+    }
+    
+    // ✅ PRODUCT CLEANUP MANAGEMENT
+    @Transactional
+    public int manualCleanupExpiredProducts(Authentication authentication) {
+        User admin = getAdminFromAuthentication(authentication);
+        
+        // Trigger the cleanup
+        productService.autoDeleteExpiredProducts();
+        
+        // Count how many were deleted (approximation based on query)
+        Instant fourteenDaysAgo = Instant.now().minus(14, java.time.temporal.ChronoUnit.DAYS);
+        int rejectedCount = productRepository.findByStatus(ProductStatus.REJECTED).size();
+        int oldPendingCount = productRepository.findByStatusAndCreatedAtBefore(ProductStatus.PENDING, fourteenDaysAgo).size();
+        int totalDeleted = rejectedCount + oldPendingCount;
+        
+        // Record admin action
+        recordAdminAction(
+                admin,
+                "PRODUCT_CLEANUP",
+                "SYSTEM",
+                "AUTO_CLEANUP",
+                "Manually triggered cleanup of " + totalDeleted + " expired products (rejected or pending >14 days)"
+        );
+        
+        return totalDeleted;
+    }
+    
+    public CleanupStatsResponse getCleanupStats() {
+        Instant fourteenDaysAgo = Instant.now().minus(14, java.time.temporal.ChronoUnit.DAYS);
+        
+        List<Product> rejectedProducts = productRepository.findByStatus(ProductStatus.REJECTED);
+        List<Product> oldPendingProducts = productRepository.findByStatusAndCreatedAtBefore(
+                ProductStatus.PENDING, fourteenDaysAgo);
+        
+        String oldestDate = oldPendingProducts.stream()
+                .map(Product::getCreatedAt)
+                .min(Instant::compareTo)
+                .map(Instant::toString)
+                .orElse("N/A");
+        
+        return CleanupStatsResponse.builder()
+                .rejectedProductsCount(rejectedProducts.size())
+                .oldPendingProductsCount(oldPendingProducts.size())
+                .totalProductsToDelete(rejectedProducts.size() + oldPendingProducts.size())
+                .oldestPendingProductDate(oldestDate)
+                .message("Products will be automatically deleted daily at 2 AM")
+                .build();
     }
 }

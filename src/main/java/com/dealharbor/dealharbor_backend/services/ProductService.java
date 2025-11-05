@@ -5,27 +5,32 @@ import com.dealharbor.dealharbor_backend.entities.*;
 import com.dealharbor.dealharbor_backend.enums.ProductStatus;
 import com.dealharbor.dealharbor_backend.repositories.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProductService {
     
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductImageRepository productImageRepository;
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
@@ -263,14 +268,103 @@ public class ProductService {
             throw new RuntimeException("Cannot delete sold products");
         }
         
-        product.setStatus(ProductStatus.DELETED);
-        product.setUpdatedAt(Instant.now());
-        productRepository.save(product);
+        // Delete all product images from S3 and database
+        deleteProductImages(product);
+        
+        // Hard delete the product from database
+        productRepository.delete(product);
         
         // Update seller stats
         User seller = product.getSeller();
         seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
         userRepository.save(seller);
+        
+        log.info("Product {} deleted by user {}", productId, user.getEmail());
+    }
+    
+    /**
+     * Scheduled task to automatically delete rejected products and products pending for more than 14 days
+     * Runs daily at 2 AM
+     */
+    @Scheduled(cron = "0 0 2 * * *")
+    @Transactional
+    public void autoDeleteExpiredProducts() {
+        log.info("Starting automatic cleanup of expired products...");
+        
+        Instant fourteenDaysAgo = Instant.now().minus(14, ChronoUnit.DAYS);
+        
+        // Find all rejected products
+        List<Product> rejectedProducts = productRepository.findByStatus(ProductStatus.REJECTED);
+        
+        // Find all pending products older than 14 days
+        List<Product> oldPendingProducts = productRepository.findByStatusAndCreatedAtBefore(
+                ProductStatus.PENDING, fourteenDaysAgo);
+        
+        int deletedCount = 0;
+        
+        // Delete rejected products
+        for (Product product : rejectedProducts) {
+            try {
+                deleteProductImages(product);
+                productRepository.delete(product);
+                
+                // Update seller stats
+                User seller = product.getSeller();
+                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
+                userRepository.save(seller);
+                
+                deletedCount++;
+                log.info("Auto-deleted rejected product: {} ({})", product.getId(), product.getTitle());
+            } catch (Exception e) {
+                log.error("Failed to delete rejected product {}: {}", product.getId(), e.getMessage());
+            }
+        }
+        
+        // Delete old pending products
+        for (Product product : oldPendingProducts) {
+            try {
+                deleteProductImages(product);
+                productRepository.delete(product);
+                
+                // Update seller stats
+                User seller = product.getSeller();
+                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
+                userRepository.save(seller);
+                
+                deletedCount++;
+                log.info("Auto-deleted old pending product: {} ({}) - Created: {}", 
+                        product.getId(), product.getTitle(), product.getCreatedAt());
+            } catch (Exception e) {
+                log.error("Failed to delete old pending product {}: {}", product.getId(), e.getMessage());
+            }
+        }
+        
+        log.info("Automatic cleanup completed. Deleted {} products.", deletedCount);
+    }
+    
+    /**
+     * Helper method to delete all images associated with a product
+     */
+    private void deleteProductImages(Product product) {
+        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
+        
+        for (ProductImage image : images) {
+            try {
+                // Delete from S3
+                boolean deleted = storageService.deleteFile(image.getImageUrl());
+                if (deleted) {
+                    log.debug("Deleted image from S3: {}", image.getImageUrl());
+                } else {
+                    log.warn("Failed to delete image from S3: {}", image.getImageUrl());
+                }
+            } catch (Exception e) {
+                log.error("Error deleting image from S3: {}", image.getImageUrl(), e);
+            }
+        }
+        
+        // Delete all image records from database
+        productImageRepository.deleteByProductId(product.getId());
+        log.debug("Deleted {} image records from database for product {}", images.size(), product.getId());
     }
 
     // Helper methods

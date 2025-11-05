@@ -72,4 +72,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     
     // Admin specific queries
     List<Product> findBySellerIdAndStatusNot(String sellerId, ProductStatus status);
+    
+    // Auto-deletion queries
+    List<Product> findByStatus(ProductStatus status);
+    List<Product> findByStatusAndCreatedAtBefore(ProductStatus status, Instant createdBefore);
 }

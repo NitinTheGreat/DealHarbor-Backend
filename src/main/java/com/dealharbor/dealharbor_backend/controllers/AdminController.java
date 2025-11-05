@@ -74,4 +74,23 @@ public class AdminController {
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(adminService.searchUsersForAdmin(keyword, page, size));
     }
+    
+    // ✅ PRODUCT CLEANUP MANAGEMENT
+    @PostMapping("/cleanup/expired-products")
+    public ResponseEntity<?> manualCleanupExpiredProducts(Authentication authentication) {
+        int deletedCount = adminService.manualCleanupExpiredProducts(authentication);
+        return ResponseEntity.ok(new CleanupResponse(
+                "Cleanup completed successfully",
+                deletedCount,
+                "Deleted " + deletedCount + " expired products (rejected or pending >14 days)"
+        ));
+    }
+    
+    @GetMapping("/cleanup/stats")
+    public ResponseEntity<CleanupStatsResponse> getCleanupStats() {
+        return ResponseEntity.ok(adminService.getCleanupStats());
+    }
+    
+    // Helper response classes
+    record CleanupResponse(String message, int deletedCount, String details) {}
 }

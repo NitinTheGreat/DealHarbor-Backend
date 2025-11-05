@@ -331,7 +331,7 @@
                 container.innerHTML = `<div class="p-12 text-center text-gray-600">No products found</div>`;
                 return;
             }
-            const tableHTML = `<table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Product</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Seller</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Price</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Created</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${products.map(product => `<tr><td class="px-6 py-4"><div class="flex items-center"><img src="${product.primaryImageUrl ? "http://localhost:8080" + product.primaryImageUrl : "/api/images/default-product.png"}" alt="${product.title}" class="w-16 h-16 rounded-lg object-cover mr-4" onerror="this.src='/api/images/default-product.png'"><div><div class="font-medium">${product.title}</div><div class="text-sm text-gray-500">${product.categoryName}</div></div></div></td><td class="px-6 py-4">${product.sellerName}</td><td class="px-6 py-4">₹${product.price.toLocaleString("en-IN")}</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : product.status === "REJECTED" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}">${product.status}</span></td><td class="px-6 py-4">${new Date(product.createdAt).toLocaleDateString()}</td><td class="px-6 py-4"><div class="flex space-x-2"><button onclick="viewProduct('${product.id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">View</button>${product.status === "PENDING" ? `<button onclick="quickApprove('${product.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button><button onclick="quickReject('${product.id}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>` : ""}</div></td></tr>`).join("")}</tbody></table>`;
+            const tableHTML = `<table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Product</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Seller</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Price</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Created</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${products.map(product => `<tr><td class="px-6 py-4"><div class="flex items-center"><img src="${product.primaryImageUrl ? "http://localhost:8080" + product.primaryImageUrl : "/api/images/default-product.png"}" alt="${product.title}" class="w-16 h-16 rounded-lg object-cover mr-4" onerror="this.src='/api/images/default-product.png'"><div><div class="font-medium">${product.title}</div><div class="text-sm text-gray-500">${product.categoryName}</div></div></div></td><td class="px-6 py-4">${product.sellerName}</td><td class="px-6 py-4">₹${product.price.toLocaleString("en-IN")}</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : product.status === "REJECTED" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}">${product.status}</span></td><td class="px-6 py-4">${new Date(product.createdAt).toLocaleDateString()}</td><td class="px-6 py-4"><div class="flex flex-wrap gap-2"><button onclick="viewProduct('${product.id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">View</button>${product.status === "PENDING" ? `<button onclick="quickApprove('${product.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button><button onclick="quickReject('${product.id}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>` : ""}${product.status !== "SOLD" ? `<button onclick="deleteProduct('${product.id}', '${product.title.replace(/'/g, "\\'")}', '${product.status}')" class="px-3 py-1 bg-gray-800 text-white text-xs rounded hover:bg-gray-900">Delete</button>` : ""}</div></td></tr>`).join("")}</tbody></table>`;
             container.innerHTML = tableHTML;
         }
 
@@ -481,6 +481,61 @@
             } catch (error) {
                 console.error("Reject failed:", error);
                 alert("Failed to reject product");
+            }
+        }
+
+        async function deleteProduct(productId, productTitle, productStatus) {
+            if (productStatus === "SOLD") {
+                alert("Cannot delete sold products!");
+                return;
+            }
+            
+            const confirmed = confirm(
+                `⚠️ PERMANENT DELETION WARNING\n\n` +
+                `Product: ${productTitle}\n` +
+                `Status: ${productStatus}\n\n` +
+                `This will permanently delete:\n` +
+                `• The product from database\n` +
+                `• All product images from Supabase S3\n` +
+                `• All associated records\n\n` +
+                `This action CANNOT be undone!\n\n` +
+                `Are you sure you want to proceed?`
+            );
+            
+            if (!confirmed) return;
+            
+            // Second confirmation for extra safety
+            const doubleConfirm = confirm(`FINAL CONFIRMATION\n\nDelete "${productTitle}"?\n\nType OK in the next prompt to confirm.`);
+            if (!doubleConfirm) return;
+            
+            const finalConfirm = prompt('Type "DELETE" to confirm permanent deletion:');
+            if (finalConfirm !== "DELETE") {
+                alert("Deletion cancelled - confirmation text did not match.");
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + "/products/" + productId, {
+                    method: "DELETE",
+                    credentials: "include"
+                });
+                
+                if (response.ok) {
+                    alert("✅ Product deleted successfully!\n\nThe product and all its images have been permanently removed.");
+                    loadProducts();
+                    loadDashboardStats();
+                    
+                    // Close modal if it's open for this product
+                    if (currentProduct && currentProduct.id === productId) {
+                        closeProductModal();
+                    }
+                } else {
+                    const error = await response.text();
+                    alert("❌ Failed to delete product:\n\n" + error);
+                }
+            } catch (error) {
+                console.error("Delete failed:", error);
+                alert("❌ Failed to delete product:\n\n" + error.message);
             }
         }
 
