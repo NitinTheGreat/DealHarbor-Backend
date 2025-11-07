@@ -2,6 +2,7 @@ package com.dealharbor.dealharbor_backend.services;
 
 import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.entities.*;
+import com.dealharbor.dealharbor_backend.enums.NotificationType;
 import com.dealharbor.dealharbor_backend.enums.ProductStatus;
 import com.dealharbor.dealharbor_backend.repositories.*;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,8 @@ public class ProductService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final EmailService emailService;
+    private final ProductPendingReviewRepository productPendingReviewRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
@@ -284,24 +287,27 @@ public class ProductService {
     }
     
     /**
-     * Scheduled task to automatically delete rejected products and products pending for more than 14 days
+     * Scheduled task to:
+     * 1. Delete rejected products immediately
+     * 2. Move products pending for 14+ days to review queue (instead of deleting)
      * Runs daily at 2 AM
      */
     @Scheduled(cron = "0 0 2 * * *")
     @Transactional
     public void autoDeleteExpiredProducts() {
-        log.info("Starting automatic cleanup of expired products...");
+        log.info("Starting automatic cleanup and review queue processing...");
         
         Instant fourteenDaysAgo = Instant.now().minus(14, ChronoUnit.DAYS);
         
-        // Find all rejected products
+        // Find all rejected products - these will be deleted
         List<Product> rejectedProducts = productRepository.findByStatus(ProductStatus.REJECTED);
         
-        // Find all pending products older than 14 days
+        // Find all pending products older than 14 days - these will be moved to review queue
         List<Product> oldPendingProducts = productRepository.findByStatusAndCreatedAtBefore(
                 ProductStatus.PENDING, fourteenDaysAgo);
         
         int deletedCount = 0;
+        int movedToReviewCount = 0;
         
         // Delete rejected products
         for (Product product : rejectedProducts) {
@@ -337,42 +343,75 @@ public class ProductService {
             }
         }
         
-        // Delete old pending products
+        // Move old pending products to review queue instead of deleting
         for (Product product : oldPendingProducts) {
             try {
+                // Check if already in review queue
+                if (productPendingReviewRepository.existsByProductIdAndIsResolvedFalse(product.getId())) {
+                    log.debug("Product {} already in review queue, skipping", product.getId());
+                    continue;
+                }
+                
                 User seller = product.getSeller();
                 String productTitle = product.getTitle();
+                long daysPending = ChronoUnit.DAYS.between(product.getCreatedAt(), Instant.now());
                 
-                // Send email notification before deletion
+                // Create review record
+                ProductPendingReview review = ProductPendingReview.builder()
+                        .product(product)
+                        .originalCreatedAt(product.getCreatedAt())
+                        .movedToReviewAt(Instant.now())
+                        .daysPending((int) daysPending)
+                        .userNotified(false)
+                        .isResolved(false)
+                        .build();
+                
+                productPendingReviewRepository.save(review);
+                
+                // Send email notification to user
                 try {
-                    emailService.sendProductAutoDeletedNotification(
+                    emailService.sendProductMovedToReview(
                             seller.getEmail(),
                             seller.getName(),
                             productTitle,
-                            "Your product has been pending approval for more than 14 days and has been automatically removed.",
-                            product.getCreatedAt()
+                            (int) daysPending
                     );
-                    log.info("Sent auto-deletion email to {} for old pending product: {}", seller.getEmail(), productTitle);
+                    
+                    review.setUserNotified(true);
+                    review.setNotificationSentAt(Instant.now());
+                    productPendingReviewRepository.save(review);
+                    
+                    log.info("Sent review notification email to {} for product: {}", seller.getEmail(), productTitle);
                 } catch (Exception e) {
-                    log.error("Failed to send email notification for old pending product {}: {}", product.getId(), e.getMessage());
+                    log.error("Failed to send email notification for product {}: {}", product.getId(), e.getMessage());
                 }
                 
-                deleteProductImages(product);
-                productRepository.delete(product);
+                // Create in-app notification
+                try {
+                    notificationService.createNotification(
+                            seller.getId(),
+                            "Product Needs Your Attention",
+                            "Your product '" + productTitle + "' has been pending for " + daysPending + 
+                            " days. Please edit it to improve approval chances.",
+                            NotificationType.PRODUCT_UPDATE,
+                            "/products/" + product.getId() + "/edit",
+                            product.getId(),
+                            "PRODUCT"
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to create notification for product {}: {}", product.getId(), e.getMessage());
+                }
                 
-                // Update seller stats
-                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
-                userRepository.save(seller);
-                
-                deletedCount++;
-                log.info("Auto-deleted old pending product: {} ({}) - Created: {}", 
-                        product.getId(), productTitle, product.getCreatedAt());
+                movedToReviewCount++;
+                log.info("Moved product to review queue: {} ({}) - Pending for {} days", 
+                        product.getId(), productTitle, daysPending);
             } catch (Exception e) {
-                log.error("Failed to delete old pending product {}: {}", product.getId(), e.getMessage());
+                log.error("Failed to move product {} to review queue: {}", product.getId(), e.getMessage());
             }
         }
         
-        log.info("Automatic cleanup completed. Deleted {} products.", deletedCount);
+        log.info("Automatic cleanup completed. Deleted {} rejected products. Moved {} old pending products to review queue.", 
+                deletedCount, movedToReviewCount);
     }
     
     /**

@@ -171,6 +171,65 @@ public class EmailService {
         sendMail(to, subject, text);
     }
 
+    public void sendProductMovedToReview(String to, String userName, String productTitle, int daysPending) {
+        String subject = "DealHarbor - Product Needs Your Attention";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Your product '" + productTitle + "' has been pending approval for " + daysPending + " days.\n\n" +
+                     "⚠️ ACTION REQUIRED:\n\n" +
+                     "Your product has been moved to an extended review queue. This means:\n\n" +
+                     "1. Your product is still visible to admins for review\n" +
+                     "2. You can edit your product listing to improve its chances of approval\n" +
+                     "3. The admin team will review it soon\n\n" +
+                     "💡 RECOMMENDATIONS:\n" +
+                     "• Review your product description - make it clear and detailed\n" +
+                     "• Check your images - ensure they are clear and show the product well\n" +
+                     "• Verify all information is accurate (price, condition, etc.)\n" +
+                     "• Make sure you've followed our listing guidelines\n\n" +
+                     "You can edit your product by:\n" +
+                     "1. Logging into your account\n" +
+                     "2. Going to 'My Products'\n" +
+                     "3. Clicking 'Edit' on this product\n\n" +
+                     "After you make improvements, an admin will review it and make a decision.\n\n" +
+                     "⚠️ If your product is REJECTED after this review, it will be permanently deleted.\n" +
+                     "⚠️ If APPROVED, it will go live on the marketplace immediately!\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductApprovedAfterReview(String to, String userName, String productTitle) {
+        String subject = "DealHarbor - Great News! Your Product is Approved";
+        String text = "Hi " + userName + ",\n\n" +
+                     "🎉 Excellent news! Your product '" + productTitle + "' has been approved!\n\n" +
+                     "Your product is now live on the DealHarbor marketplace and visible to all users.\n\n" +
+                     "Thank you for taking the time to improve your listing. Your attention to detail has paid off!\n\n" +
+                     "What happens next:\n" +
+                     "• Your product is now searchable by all users\n" +
+                     "• Buyers can contact you for inquiries\n" +
+                     "• You'll receive notifications when users show interest\n\n" +
+                     "Best of luck with your sale!\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductRejectedAfterReview(String to, String userName, String productTitle, String reason) {
+        String subject = "DealHarbor - Product Rejected After Review";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Unfortunately, your product '" + productTitle + "' has been rejected after extended review.\n\n";
+        
+        if (reason != null && !reason.isEmpty()) {
+            text += "Reason: " + reason + "\n\n";
+        }
+        
+        text += "Your product has been permanently removed from our system.\n\n" +
+               "What you can do next:\n" +
+               "• Review our listing guidelines carefully\n" +
+               "• Address the issues mentioned in the rejection reason\n" +
+               "• Create a new listing with improved details and images\n\n" +
+               "We appreciate your understanding and encourage you to list again with the necessary improvements.\n\n" +
+               "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
     private void sendMail(String to, String subject, String text) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
