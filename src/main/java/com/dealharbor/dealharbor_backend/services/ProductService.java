@@ -31,6 +31,7 @@ public class ProductService {
     private final ProductImageRepository productImageRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final EmailService emailService;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
@@ -305,16 +306,32 @@ public class ProductService {
         // Delete rejected products
         for (Product product : rejectedProducts) {
             try {
+                User seller = product.getSeller();
+                String productTitle = product.getTitle();
+                
+                // Send email notification before deletion
+                try {
+                    emailService.sendProductAutoDeletedNotification(
+                            seller.getEmail(),
+                            seller.getName(),
+                            productTitle,
+                            "Your product was rejected by admin and has been automatically removed from the system.",
+                            product.getCreatedAt()
+                    );
+                    log.info("Sent auto-deletion email to {} for rejected product: {}", seller.getEmail(), productTitle);
+                } catch (Exception e) {
+                    log.error("Failed to send email notification for rejected product {}: {}", product.getId(), e.getMessage());
+                }
+                
                 deleteProductImages(product);
                 productRepository.delete(product);
                 
                 // Update seller stats
-                User seller = product.getSeller();
                 seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
                 userRepository.save(seller);
                 
                 deletedCount++;
-                log.info("Auto-deleted rejected product: {} ({})", product.getId(), product.getTitle());
+                log.info("Auto-deleted rejected product: {} ({})", product.getId(), productTitle);
             } catch (Exception e) {
                 log.error("Failed to delete rejected product {}: {}", product.getId(), e.getMessage());
             }
@@ -323,17 +340,33 @@ public class ProductService {
         // Delete old pending products
         for (Product product : oldPendingProducts) {
             try {
+                User seller = product.getSeller();
+                String productTitle = product.getTitle();
+                
+                // Send email notification before deletion
+                try {
+                    emailService.sendProductAutoDeletedNotification(
+                            seller.getEmail(),
+                            seller.getName(),
+                            productTitle,
+                            "Your product has been pending approval for more than 14 days and has been automatically removed.",
+                            product.getCreatedAt()
+                    );
+                    log.info("Sent auto-deletion email to {} for old pending product: {}", seller.getEmail(), productTitle);
+                } catch (Exception e) {
+                    log.error("Failed to send email notification for old pending product {}: {}", product.getId(), e.getMessage());
+                }
+                
                 deleteProductImages(product);
                 productRepository.delete(product);
                 
                 // Update seller stats
-                User seller = product.getSeller();
                 seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
                 userRepository.save(seller);
                 
                 deletedCount++;
                 log.info("Auto-deleted old pending product: {} ({}) - Created: {}", 
-                        product.getId(), product.getTitle(), product.getCreatedAt());
+                        product.getId(), productTitle, product.getCreatedAt());
             } catch (Exception e) {
                 log.error("Failed to delete old pending product {}: {}", product.getId(), e.getMessage());
             }
