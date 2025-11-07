@@ -1,0 +1,549 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealHarbor Admin Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-blue-600 mb-2"> DealHarbor</h1>
+                <p class="text-gray-600">Admin Portal</p>
+            </div>
+            <div id="loginError" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded"></div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                    <input type="email" id="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="admin@dealharbor.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="">
+                </div>
+                <button type="submit" id="loginBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboardScreen" class="hidden min-h-screen flex">
+        <aside class="w-64 bg-white border-r">
+            <div class="p-6">
+                <h2 class="text-2xl font-bold text-blue-600">DealHarbor</h2>
+                <p class="text-sm text-gray-600">Admin Portal</p>
+            </div>
+            <nav class="px-4">
+                <a href="#" class="nav-link active flex items-center px-4 py-3 text-gray-700 rounded-lg mb-2" data-view="dashboard">
+                    <span class="mr-3"></span> Dashboard
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 rounded-lg mb-2" data-view="products">
+                    <span class="mr-3"></span> Products
+                </a>
+                <button id="logoutBtn" class="w-full mt-8 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                     Logout
+                </button>
+            </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+            <div class="bg-white border-b px-8 py-4 flex justify-between items-center">
+                <h1 id="pageTitle" class="text-2xl font-bold">Dashboard</h1>
+                <div class="flex items-center space-x-3">
+                    <div id="userAvatar" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">A</div>
+                    <div>
+                        <div id="userName" class="font-semibold text-sm">Admin</div>
+                        <div class="text-xs text-gray-600">Administrator</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-8">
+                <div id="dashboardView" class="view">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
+                            <div class="text-sm text-gray-600 mb-2">Total Users</div>
+                            <div id="statTotalUsers" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
+                            <div class="text-sm text-gray-600 mb-2">Approved Products</div>
+                            <div id="statApprovedProducts" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-yellow-500">
+                            <div class="text-sm text-gray-600 mb-2">Pending Products</div>
+                            <div id="statPendingProducts" class="text-3xl font-bold">0</div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow border-l-4 border-red-500">
+                            <div class="text-sm text-gray-600 mb-2">Total Orders</div>
+                            <div id="statTotalOrders" class="text-3xl font-bold">0</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow">
+                        <div class="px-6 py-4 border-b">
+                            <h2 class="text-xl font-semibold">Recent Products</h2>
+                        </div>
+                        <div id="dashboardProductsLoading" class="p-12 text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                        </div>
+                        <div id="dashboardProductsTable"></div>
+                    </div>
+                </div>
+
+                <div id="productsView" class="view hidden">
+                    <div class="bg-white rounded-xl shadow">
+                        <div class="px-6 py-4 border-b flex flex-wrap justify-between items-center gap-4">
+                            <h2 class="text-xl font-semibold">Product Management</h2>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="all">All</button>
+                                <button class="filter-btn active px-4 py-2 rounded-lg border-2" data-status="PENDING">Pending</button>
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="APPROVED">Approved</button>
+                                <button class="filter-btn px-4 py-2 rounded-lg border-2" data-status="REJECTED">Rejected</button>
+                                <input type="text" id="productSearch" class="px-4 py-2 border-2 rounded-lg" placeholder="Search products...">
+                            </div>
+                        </div>
+                        <div id="productsLoading" class="p-12 text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                        </div>
+                        <div id="productsTable"></div>
+                        <div id="productsPagination" class="px-6 py-4 border-t flex justify-center items-center space-x-4"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="productModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Product Details</h3>
+                <button onclick="closeProductModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="modalBody" class="px-6 py-4"></div>
+            <div class="px-6 py-4 border-t flex justify-end space-x-3">
+                <button onclick="closeProductModal()" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Close</button>
+                <button class="btn-approve px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" onclick="approveProduct()"> Approve</button>
+                <button class="btn-reject px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onclick="rejectProduct()"> Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .nav-link.active { background: #2563eb; color: white; }
+        .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .filter-btn { border-color: #e5e7eb; }
+        .filter-btn:hover { border-color: #2563eb; }
+    </style>
+
+    <script>
+        const API_BASE = "http://localhost:8080/api";
+        let currentUser = null, currentProduct = null, currentPage = 0, currentStatus = "PENDING";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            checkAuth();
+            document.getElementById("loginForm").addEventListener("submit", handleLogin);
+            document.getElementById("logoutBtn").addEventListener("click", handleLogout);
+            document.querySelectorAll(".nav-link").forEach(link => {
+                link.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    switchView(link.getAttribute("data-view"));
+                });
+            });
+            document.querySelectorAll(".filter-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    currentStatus = btn.getAttribute("data-status") === "all" ? null : btn.getAttribute("data-status");
+                    currentPage = 0;
+                    loadProducts();
+                });
+            });
+            let searchTimeout;
+            document.getElementById("productSearch").addEventListener("input", (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => searchProducts(e.target.value), 500);
+            });
+        });
+
+        async function checkAuth() {
+            try {
+                const response = await fetch(API_BASE + "/auth/me", { credentials: "include" });
+                if (response.ok) {
+                    currentUser = await response.json();
+                    if (currentUser.role !== "ADMIN") {
+                        showError("Access denied. Admin privileges required.");
+                        return;
+                    }
+                    showDashboard();
+                    loadDashboardStats();
+                    loadRecentProducts();
+                } else {
+                    showLogin();
+                }
+            } catch (error) {
+                console.error("Auth check failed:", error);
+                showLogin();
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const loginBtn = document.getElementById("loginBtn");
+            const errorDiv = document.getElementById("loginError");
+            loginBtn.disabled = true;
+            loginBtn.textContent = "Signing in...";
+            errorDiv.classList.add("hidden");
+            try {
+                const response = await fetch(API_BASE + "/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ email, password })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.user;
+                    if (currentUser.role !== "ADMIN") {
+                        throw new Error("Access denied. Admin privileges required.");
+                    }
+                    showDashboard();
+                    loadDashboardStats();
+                    loadRecentProducts();
+                } else {
+                    const error = await response.text();
+                    throw new Error(error || "Login failed");
+                }
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove("hidden");
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = "Sign In";
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await fetch(API_BASE + "/auth/logout", { method: "POST", credentials: "include" });
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+            currentUser = null;
+            showLogin();
+        }
+
+        function showLogin() {
+            document.getElementById("loginScreen").classList.remove("hidden");
+            document.getElementById("dashboardScreen").classList.add("hidden");
+        }
+
+        function showDashboard() {
+            document.getElementById("loginScreen").classList.add("hidden");
+            document.getElementById("dashboardScreen").classList.remove("hidden");
+            if (currentUser) {
+                document.getElementById("userName").textContent = currentUser.name;
+                document.getElementById("userAvatar").textContent = currentUser.name.charAt(0).toUpperCase();
+            }
+        }
+
+        function switchView(view) {
+            document.querySelectorAll(".nav-link").forEach(link => {
+                link.classList.toggle("active", link.getAttribute("data-view") === view);
+            });
+            document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+            document.getElementById(view + "View").classList.remove("hidden");
+            document.getElementById("pageTitle").textContent = view === "dashboard" ? "Dashboard" : "Product Management";
+            if (view === "products") loadProducts();
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch(API_BASE + "/admin/dashboard", { credentials: "include" });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById("statTotalUsers").textContent = stats.totalUsers;
+                    document.getElementById("statApprovedProducts").textContent = stats.approvedProducts;
+                    document.getElementById("statPendingProducts").textContent = stats.pendingProducts;
+                    document.getElementById("statTotalOrders").textContent = stats.totalOrders;
+                }
+            } catch (error) {
+                console.error("Failed to load stats:", error);
+            }
+        }
+
+        async function loadRecentProducts() {
+            try {
+                const response = await fetch(API_BASE + "/admin/products?page=0&size=5&sortBy=date_desc", { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "dashboardProductsTable");
+                    document.getElementById("dashboardProductsLoading").style.display = "none";
+                }
+            } catch (error) {
+                console.error("Failed to load recent products:", error);
+            }
+        }
+
+        async function loadProducts() {
+            document.getElementById("productsLoading").classList.remove("hidden");
+            document.getElementById("productsTable").innerHTML = "";
+            document.getElementById("productsPagination").innerHTML = "";
+            try {
+                let url = API_BASE + "/admin/products?page=" + currentPage + "&size=20&sortBy=date_desc";
+                if (currentStatus) url += "&status=" + currentStatus;
+                const response = await fetch(url, { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "productsTable");
+                    renderPagination(data);
+                    document.getElementById("productsLoading").classList.add("hidden");
+                }
+            } catch (error) {
+                console.error("Failed to load products:", error);
+            }
+        }
+
+        async function searchProducts(keyword) {
+            if (!keyword.trim()) {
+                loadProducts();
+                return;
+            }
+            document.getElementById("productsLoading").classList.remove("hidden");
+            try {
+                const response = await fetch(API_BASE + "/admin/products/search?keyword=" + encodeURIComponent(keyword) + "&page=0&size=20", { credentials: "include" });
+                if (response.ok) {
+                    const data = await response.json();
+                    renderProductsTable(data.content, "productsTable");
+                    document.getElementById("productsLoading").classList.add("hidden");
+                }
+            } catch (error) {
+                console.error("Search failed:", error);
+            }
+        }
+
+        function renderProductsTable(products, containerId) {
+            const container = document.getElementById(containerId);
+            if (!products || products.length === 0) {
+                container.innerHTML = `<div class="p-12 text-center text-gray-600">No products found</div>`;
+                return;
+            }
+            const tableHTML = `<table class="w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Product</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Seller</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Price</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Created</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">${products.map(product => `<tr><td class="px-6 py-4"><div class="flex items-center"><img src="${product.primaryImageUrl ? "http://localhost:8080" + product.primaryImageUrl : "/api/images/default-product.png"}" alt="${product.title}" class="w-16 h-16 rounded-lg object-cover mr-4" onerror="this.src='/api/images/default-product.png'"><div><div class="font-medium">${product.title}</div><div class="text-sm text-gray-500">${product.categoryName}</div></div></div></td><td class="px-6 py-4">${product.sellerName}</td><td class="px-6 py-4">₹${product.price.toLocaleString("en-IN")}</td><td class="px-6 py-4"><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : product.status === "REJECTED" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}">${product.status}</span></td><td class="px-6 py-4">${new Date(product.createdAt).toLocaleDateString()}</td><td class="px-6 py-4"><div class="flex flex-wrap gap-2"><button onclick="viewProduct('${product.id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">View</button>${product.status === "PENDING" ? `<button onclick="quickApprove('${product.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button><button onclick="quickReject('${product.id}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>` : ""}${product.status !== "SOLD" ? `<button onclick="deleteProduct('${product.id}', '${product.title.replace(/'/g, "\\'")}', '${product.status}')" class="px-3 py-1 bg-gray-800 text-white text-xs rounded hover:bg-gray-900">Delete</button>` : ""}</div></td></tr>`).join("")}</tbody></table>`;
+            container.innerHTML = tableHTML;
+        }
+
+        function renderPagination(data) {
+            const container = document.getElementById("productsPagination");
+            container.innerHTML = `<button ${data.first ? "disabled" : ""} onclick="changePage(${currentPage - 1})" class="px-4 py-2 border rounded ${data.first ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}">Previous</button><span>Page ${data.page + 1} of ${data.totalPages}</span><button ${data.last ? "disabled" : ""} onclick="changePage(${currentPage + 1})" class="px-4 py-2 border rounded ${data.last ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}">Next</button>`;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            loadProducts();
+        }
+
+        async function viewProduct(productId) {
+            try {
+                const response = await fetch(API_BASE + "/products/" + productId, { credentials: "include" });
+                if (response.ok) {
+                    currentProduct = await response.json();
+                    showProductModal(currentProduct);
+                }
+            } catch (error) {
+                console.error("Failed to load product:", error);
+                alert("Failed to load product details");
+            }
+        }
+
+        function showProductModal(product) {
+            const modal = document.getElementById("productModal");
+            const modalBody = document.getElementById("modalBody");
+            const images = product.images && product.images.length > 0 ? product.images.map(img => `<img src="http://localhost:8080${img.imageUrl}" alt="${product.title}" class="w-full max-w-md rounded-lg mb-4" onerror="this.style.display='none'">`).join("") : '<p class="text-gray-600">No images available</p>';
+            modalBody.innerHTML = `<div class="mb-6">${images}</div><h3 class="text-2xl font-bold mb-4">${product.title}</h3><p class="mb-4 text-gray-700">${product.description}</p><div class="grid grid-cols-2 gap-4 mb-4"><div><strong class="block text-sm text-gray-600">Price</strong><span class="text-2xl font-bold text-green-600">₹${product.price.toLocaleString("en-IN")}</span></div><div><strong class="block text-sm text-gray-600">Condition</strong><span>${product.condition}</span></div><div><strong class="block text-sm text-gray-600">Seller</strong><span>${product.sellerName}</span></div><div><strong class="block text-sm text-gray-600">Category</strong><span>${product.categoryName}</span></div><div><strong class="block text-sm text-gray-600">Status</strong><span class="px-2 py-1 text-xs font-semibold rounded-full ${product.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : product.status === "APPROVED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}">${product.status}</span></div><div><strong class="block text-sm text-gray-600">Views</strong><span>${product.viewCount}</span></div></div>${product.brand ? `<p><strong>Brand:</strong> ${product.brand}</p>` : ""}${product.model ? `<p><strong>Model:</strong> ${product.model}</p>` : ""}${product.pickupLocation ? `<p><strong>Pickup:</strong> ${product.pickupLocation}</p>` : ""}${product.adminNotes ? `<div class="mt-4 p-4 bg-gray-50 rounded-lg"><strong class="block mb-2">Admin Notes:</strong><p class="text-gray-700">${product.adminNotes}</p></div>` : ""}`;
+            const approveBtn = modal.querySelector(".btn-approve");
+            const rejectBtn = modal.querySelector(".btn-reject");
+            if (product.status === "PENDING") {
+                approveBtn.classList.remove("hidden");
+                rejectBtn.classList.remove("hidden");
+            } else if (product.status === "APPROVED") {
+                approveBtn.classList.add("hidden");
+                rejectBtn.classList.remove("hidden");
+            } else if (product.status === "REJECTED") {
+                approveBtn.classList.remove("hidden");
+                rejectBtn.classList.add("hidden");
+            } else {
+                approveBtn.classList.add("hidden");
+                rejectBtn.classList.add("hidden");
+            }
+            modal.classList.remove("hidden");
+        }
+
+        function closeProductModal() {
+            document.getElementById("productModal").classList.add("hidden");
+            currentProduct = null;
+        }
+
+        async function quickApprove(productId) {
+            if (!confirm("Approve this product?")) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + productId, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "APPROVED" })
+                });
+                if (response.ok) {
+                    alert("Product approved!");
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed: " + error);
+                }
+            } catch (error) {
+                console.error("Approve failed:", error);
+                alert("Failed to approve product");
+            }
+        }
+
+        async function quickReject(productId) {
+            const reason = prompt("Rejection reason (optional):");
+            if (reason === null) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + productId, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "REJECTED", reason: reason, adminNotes: reason })
+                });
+                if (response.ok) {
+                    alert("Product rejected.");
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed: " + error);
+                }
+            } catch (error) {
+                console.error("Reject failed:", error);
+                alert("Failed to reject product");
+            }
+        }
+
+        async function approveProduct() {
+            if (!currentProduct) return;
+            const notes = prompt("Add admin notes (optional):");
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + currentProduct.id, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "APPROVED", adminNotes: notes || undefined })
+                });
+                if (response.ok) {
+                    alert("Product approved successfully!");
+                    closeProductModal();
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed to approve product: " + error);
+                }
+            } catch (error) {
+                console.error("Approve failed:", error);
+                alert("Failed to approve product");
+            }
+        }
+
+        async function rejectProduct() {
+            if (!currentProduct) return;
+            const reason = prompt("Rejection reason (required):");
+            if (!reason) return;
+            try {
+                const response = await fetch(API_BASE + "/admin/products/" + currentProduct.id, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ status: "REJECTED", reason: reason, adminNotes: reason })
+                });
+                if (response.ok) {
+                    alert("Product rejected.");
+                    closeProductModal();
+                    loadProducts();
+                    loadDashboardStats();
+                } else {
+                    const error = await response.text();
+                    alert("Failed to reject product: " + error);
+                }
+            } catch (error) {
+                console.error("Reject failed:", error);
+                alert("Failed to reject product");
+            }
+        }
+
+        async function deleteProduct(productId, productTitle, productStatus) {
+            if (productStatus === "SOLD") {
+                alert("Cannot delete sold products!");
+                return;
+            }
+            
+            const confirmed = confirm(
+                `⚠️ PERMANENT DELETION WARNING\n\n` +
+                `Product: ${productTitle}\n` +
+                `Status: ${productStatus}\n\n` +
+                `This will permanently delete:\n` +
+                `• The product from database\n` +
+                `• All product images from Supabase S3\n` +
+                `• All associated records\n\n` +
+                `This action CANNOT be undone!\n\n` +
+                `Are you sure you want to proceed?`
+            );
+            
+            if (!confirmed) return;
+            
+            // Second confirmation for extra safety
+            const doubleConfirm = confirm(`FINAL CONFIRMATION\n\nDelete "${productTitle}"?\n\nType OK in the next prompt to confirm.`);
+            if (!doubleConfirm) return;
+            
+            const finalConfirm = prompt('Type "DELETE" to confirm permanent deletion:');
+            if (finalConfirm !== "DELETE") {
+                alert("Deletion cancelled - confirmation text did not match.");
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + "/products/" + productId, {
+                    method: "DELETE",
+                    credentials: "include"
+                });
+                
+                if (response.ok) {
+                    alert("✅ Product deleted successfully!\n\nThe product and all its images have been permanently removed.");
+                    loadProducts();
+                    loadDashboardStats();
+                    
+                    // Close modal if it's open for this product
+                    if (currentProduct && currentProduct.id === productId) {
+                        closeProductModal();
+                    }
+                } else {
+                    const error = await response.text();
+                    alert("❌ Failed to delete product:\n\n" + error);
+                }
+            } catch (error) {
+                console.error("Delete failed:", error);
+                alert("❌ Failed to delete product:\n\n" + error.message);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById("loginError");
+            errorDiv.textContent = message;
+            errorDiv.classList.remove("hidden");
+        }
+    </script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 package com.dealharbor.dealharbor_backend.controllers;
 
+import com.dealharbor.dealharbor_backend.services.StorageService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -8,13 +10,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/images")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"}, allowCredentials = "true")
 public class ImageController {
+
+    @Autowired
+    private StorageService storageService;
 
     @GetMapping("/default-avatar.png")
     public ResponseEntity<Resource> getDefaultAvatar() {
@@ -33,48 +38,88 @@ public class ImageController {
     }
 
     @PostMapping("/upload-profile-photo")
-    public ResponseEntity<String> uploadProfilePhoto(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> uploadProfilePhoto(@RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
-                return ResponseEntity.badRequest().body("Please select a file to upload");
+                return ResponseEntity.badRequest().body(createErrorResponse("Please select a file to upload"));
             }
 
-            // Create uploads directory if it doesn't exist
-            Path uploadPath = Paths.get("uploads/profile-photos");
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // Generate unique filename
-            String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = uploadPath.resolve(filename);
+            // Upload to Supabase Storage
+            String fileUrl = storageService.uploadProfilePhoto(file);
             
-            // Save file
-            Files.copy(file.getInputStream(), filePath);
-            
-            String fileUrl = "/api/images/profile-photos/" + filename;
             return ResponseEntity.ok(fileUrl);
             
         } catch (IOException e) {
-            return ResponseEntity.internalServerError().body("Failed to upload file");
+            return ResponseEntity.internalServerError().body(createErrorResponse("Failed to upload file: " + e.getMessage()));
         }
     }
 
-    @GetMapping("/profile-photos/{filename}")
-    public ResponseEntity<Resource> getProfilePhoto(@PathVariable String filename) {
+    @PostMapping("/upload-product")
+    public ResponseEntity<?> uploadProductImage(@RequestParam("file") MultipartFile file) {
         try {
-            Path filePath = Paths.get("uploads/profile-photos").resolve(filename);
-            Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("Please select a file to upload"));
+            }
+
+            // Upload to Supabase Storage
+            String fileUrl = storageService.uploadProductImage(file);
             
-            if (resource.exists() && resource.isReadable()) {
-                return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_JPEG)
-                    .body(resource);
+            return ResponseEntity.ok(fileUrl);
+            
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().body(createErrorResponse("Failed to upload file: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/delete")
+    public ResponseEntity<?> deleteImage(@RequestParam("url") String imageUrl) {
+        try {
+            boolean deleted = storageService.deleteFile(imageUrl);
+            
+            if (deleted) {
+                Map<String, String> response = new HashMap<>();
+                response.put("message", "Image deleted successfully");
+                return ResponseEntity.ok(response);
             } else {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.badRequest().body(createErrorResponse("Failed to delete image"));
             }
         } catch (Exception e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.internalServerError().body(createErrorResponse("Error deleting image: " + e.getMessage()));
         }
+    }
+
+    @GetMapping("/check")
+    public ResponseEntity<?> checkImage(@RequestParam("url") String imageUrl) {
+        try {
+            boolean exists = storageService.fileExists(imageUrl);
+            
+            Map<String, Boolean> response = new HashMap<>();
+            response.put("exists", exists);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(createErrorResponse("Error checking image: " + e.getMessage()));
+        }
+    }
+
+    private Map<String, String> createErrorResponse(String message) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", message);
+        return error;
+    }
+
+    // Legacy endpoints for backward compatibility - redirect to Supabase URLs
+    // These will no longer serve files but can be used to inform about the migration
+    @GetMapping("/profile-photos/{filename}")
+    public ResponseEntity<?> getProfilePhoto(@PathVariable String filename) {
+        Map<String, String> message = new HashMap<>();
+        message.put("message", "Images are now stored in Supabase Storage. Please use the full URL returned from upload endpoint.");
+        return ResponseEntity.status(410).body(message); // 410 Gone
+    }
+
+    @GetMapping("/products/{filename}")
+    public ResponseEntity<?> getProductImage(@PathVariable String filename) {
+        Map<String, String> message = new HashMap<>();
+        message.put("message", "Images are now stored in Supabase Storage. Please use the full URL returned from upload endpoint.");
+        return ResponseEntity.status(410).body(message); // 410 Gone
     }
 }

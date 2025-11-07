@@ -1,0 +1,2447 @@
+================================================================================
+                  DEALHARBOR BACKEND - API DOCUMENTATION
+                        FOR NEXT.JS 15 FRONTEND DEVELOPERS
+================================================================================
+
+Project: DealHarbor Backend  
+Type: Intra-University E-commerce Platform (VIT Students)  
+Technology: Spring Boot 3.x + PostgreSQL + Redis + Session-based Authentication  
+Base URL: http://localhost:8080  
+Authentication: Session Cookies (JSESSIONID stored in HttpOnly cookie)
+
+================================================================================
+                            🚀 QUICK START GUIDE
+================================================================================
+
+AUTHENTICATION MODE: Session-Based (Cookie)
+- Login returns: "Logged in successfully."
+- Session stored in: HttpOnly cookie (automatic, no manual token management!)
+- Frontend setup: Must use credentials: 'include' in all fetch calls
+
+NEXT.JS 15 SETUP:
+1. Create an API client (see "Setting Up API Client" section below)
+2. Always use credentials: 'include' for authenticated requests
+3. CORS is configured for http://localhost:3000 and http://127.0.0.1:3000
+
+TESTING CREDENTIALS:
+- Email: test@dealharbor.com
+- Password: password123
+
+================================================================================
+                      📚 SETTING UP YOUR API CLIENT
+================================================================================
+
+================================================================================
+                      📚 SETTING UP YOUR API CLIENT
+================================================================================
+
+// File: lib/api.ts (Next.js 15 App Router)
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+/**
+ * Generic API fetch wrapper
+ * Automatically includes credentials (cookies) in all requests
+ */
+export async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const config: RequestInit = {
+    ...options,
+    credentials: 'include', // 🔑 CRITICAL: Send session cookies
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  };
+
+  const response = await fetch(url, config);
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      error: true,
+      message: 'An error occurred',
+    }));
+    throw new Error(error.message || 'Request failed');
+  }
+
+  // Some endpoints return plain text (e.g., "Logged in successfully")
+  const contentType = response.headers.get('content-type');
+  if (contentType?.includes('application/json')) {
+    return response.json();
+  }
+  
+  return response.text() as T;
+}
+
+// Convenience methods
+export const api = {
+  get: <T>(endpoint: string) => 
+    apiRequest<T>(endpoint, { method: 'GET' }),
+    
+  post: <T>(endpoint: string, data?: any) =>
+    apiRequest<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+    
+  put: <T>(endpoint: string, data?: any) =>
+    apiRequest<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+    
+  delete: <T>(endpoint: string) =>
+    apiRequest<T>(endpoint, { method: 'DELETE' }),
+};
+
+// Example usage:
+// const products = await api.get<Product[]>('/api/products');
+// await api.post('/api/auth/login', { email, password });
+
+================================================================================
+                    🔐 AUTHENTICATION FLOW (SESSION-BASED)
+================================================================================
+
+HOW IT WORKS:
+1. User logs in → Backend creates session → Sets JSESSIONID cookie
+2. Browser automatically sends cookie with every request
+3. Backend validates session → Returns data or 401 if expired
+4. User logs out → Backend destroys session → Cookie cleared
+
+FLOW DIAGRAM:
+┌─────────┐                    ┌─────────┐                    ┌──────────┐
+│ Next.js │  POST /api/auth/   │ Backend │  Set-Cookie:       │ Browser  │
+│  App    │  login             │         │  JSESSIONID=...    │          │
+│         │ ──────────────────>│         │ ─────────────────> │  Stores  │
+│         │                    │         │                    │  Cookie  │
+│         │ <─────────────────│         │                    │          │
+│         │  "Logged in"       │         │                    │          │
+└─────────┘                    └─────────┘                    └──────────┘
+
+Next request automatically includes cookie:
+┌─────────┐                    ┌─────────┐
+│ Next.js │  GET /api/auth/me  │ Backend │
+│  App    │  Cookie: JSESSIONID│         │
+│         │ ──────────────────>│         │
+│         │                    │ Validates│
+│         │ <─────────────────│  session │
+│         │   User profile     │         │
+└─────────┘                    └─────────┘
+
+================================================================================
+                      🏠 ROOT & HEALTH CHECK ENDPOINTS
+================================================================================
+
+1. GET /
+   Description: Application root health check
+   Auth: None
+   Response: "DealHarbor Backend is running!"
+   
+   Next.js Example:
+   ```tsx
+   // app/page.tsx
+   export default async function HomePage() {
+     const status = await fetch('http://localhost:8080/')
+       .then(res => res.text());
+     return <div>{status}</div>;
+   }
+   ```
+
+2. GET /health
+   Description: Simple health endpoint
+   Auth: None
+   Response: "OK"
+   
+   Next.js Example:
+   ```tsx
+   // Check if backend is alive
+   const isHealthy = await api.get<string>('/health') === 'OK';
+   ```
+
+================================================================================
+                          🧪 TEST ENDPOINTS
+================================================================================
+
+3. GET /api/test/health
+   Description: API health check
+   Auth: None
+   Response: "Server is running successfully!"
+
+4. GET /api/test/public
+   Description: Public test endpoint
+   Auth: None
+   Response: "This is a public endpoint - no auth required"
+
+5. POST /api/test/echo
+   Description: Echo test - returns what you send
+   Auth: None
+   Body: Any string
+   Response: Same string you sent
+   
+   Next.js Example:
+   ```tsx
+   const echo = await api.post<string>('/api/test/echo', 'Hello World');
+   console.log(echo); // "Hello World"
+   ```
+
+================================================================================
+                      🔐 AUTHENTICATION ENDPOINTS
+================================================================================
+
+─────────────────────── PUBLIC (No Auth Required) ──────────────────────────
+
+6. POST /api/auth/register
+   Description: Register new user
+   Auth: None
+   Body: { email, password, name }
+   Response: "Registration successful. OTP sent to email."
+   
+   Next.js Example (Client Component):
+   ```tsx
+   'use client';
+   import { useState } from 'react';
+   import { api } from '@/lib/api';
+   
+   export function RegisterForm() {
+     const [loading, setLoading] = useState(false);
+     
+     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+       e.preventDefault();
+       setLoading(true);
+       
+       const formData = new FormData(e.currentTarget);
+       const data = {
+         email: formData.get('email') as string,
+         password: formData.get('password') as string,
+         name: formData.get('name') as string,
+       };
+       
+       try {
+         const message = await api.post<string>('/api/auth/register', data);
+         alert(message); // "Registration successful..."
+         // Redirect to verification page
+       } catch (error) {
+         alert(error.message);
+       } finally {
+         setLoading(false);
+       }
+     }
+     
+     return (
+       <form onSubmit={handleSubmit}>
+         <input name="email" type="email" required />
+         <input name="password" type="password" required />
+         <input name="name" type="text" required />
+         <button disabled={loading}>Register</button>
+       </form>
+     );
+   }
+   ```
+   
+   Next.js Example (Server Action):
+   ```tsx
+   // app/actions/auth.ts
+   'use server';
+   
+   export async function registerUser(formData: FormData) {
+     const data = {
+       email: formData.get('email') as string,
+       password: formData.get('password') as string,
+       name: formData.get('name') as string,
+     };
+     
+     try {
+       const message = await api.post<string>('/api/auth/register', data);
+       return { success: true, message };
+     } catch (error) {
+       return { success: false, message: error.message };
+     }
+   }
+   ```
+
+7. POST /api/auth/verify
+   Description: Verify email with OTP
+   Auth: None
+   Body: { email, otp }
+   Response: "Email verified successfully. You can now log in."
+   
+   Next.js Example:
+   ```tsx
+   async function verifyEmail(email: string, otp: string) {
+     try {
+       const message = await api.post<string>('/api/auth/verify', {
+         email,
+         otp,
+       });
+       console.log(message);
+       // Redirect to login
+     } catch (error) {
+       console.error('Verification failed:', error);
+     }
+   }
+   ```
+
+8. POST /api/auth/resend-otp
+   Description: Resend OTP to email
+   Auth: None
+   Body: { email }
+   Response: "New OTP sent to email."
+   
+   Next.js Example:
+   ```tsx
+   async function resendOTP(email: string) {
+     const message = await api.post<string>('/api/auth/resend-otp', {
+       email,
+     });
+     alert(message);
+   }
+   ```
+
+9. POST /api/auth/login ⭐ IMPORTANT
+   Description: Login and create session
+   Auth: None
+   Body: { email, password }
+   Response: "Logged in successfully."
+   
+   🔑 CRITICAL: After successful login, the browser receives a JSESSIONID
+   cookie automatically. You don't need to store anything manually!
+   
+   Next.js Example (Client Component):
+   ```tsx
+   'use client';
+   import { useRouter } from 'next/navigation';
+   import { api } from '@/lib/api';
+   
+   export function LoginForm() {
+     const router = useRouter();
+     
+     async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+       e.preventDefault();
+       const formData = new FormData(e.currentTarget);
+       
+       try {
+         await api.post('/api/auth/login', {
+           email: formData.get('email'),
+           password: formData.get('password'),
+         });
+         
+         // Session cookie is now set automatically!
+         router.push('/dashboard');
+       } catch (error) {
+         alert('Login failed: ' + error.message);
+       }
+     }
+     
+     return (
+       <form onSubmit={handleLogin}>
+         <input name="email" type="email" required />
+         <input name="password" type="password" required />
+         <button type="submit">Login</button>
+       </form>
+     );
+   }
+   ```
+
+10. POST /api/auth/check-email
+    Description: Check if email exists and is verified
+    Auth: None
+    Body: { email }
+    Response: { exists: boolean, verified: boolean }
+    
+    Next.js Example:
+    ```tsx
+    async function checkEmail(email: string) {
+      const result = await api.post<{ exists: boolean; verified: boolean }>(
+        '/api/auth/check-email',
+        { email }
+      );
+      
+      if (result.exists && !result.verified) {
+        alert('Please verify your email first');
+      }
+    }
+    ```
+
+11. POST /api/auth/check-email-for-reset
+    Description: Check if email can reset password
+    Auth: None
+    Body: { email }
+    Response: { eligible: boolean, reason?: string }
+
+12. POST /api/auth/forgot-password
+    Description: Request password reset OTP
+    Auth: None
+    Body: { email }
+    Response: "Password reset OTP sent to email."
+
+13. POST /api/auth/reset-password
+    Description: Reset password with OTP
+    Auth: None
+    Body: { email, otp, newPassword }
+    Response: "Password reset successfully."
+    
+    Next.js Example:
+    ```tsx
+    async function resetPassword(
+      email: string,
+      otp: string,
+      newPassword: string
+    ) {
+      try {
+        await api.post('/api/auth/reset-password', {
+          email,
+          otp,
+          newPassword,
+        });
+        alert('Password reset successful! Please login.');
+        router.push('/login');
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+14. GET /api/auth/test
+    Description: Test auth endpoints are working
+    Auth: None
+    Response: "Auth endpoints are working!"
+
+─────────────────────── PROTECTED (Auth Required) ───────────────────────────
+
+15. GET /api/auth/me ⭐ IMPORTANT
+    Description: Get current logged-in user's profile
+    Auth: Required (session cookie)
+    Response: UserProfileResponse object
+    
+    Response Type:
+    ```typescript
+    interface UserProfileResponse {
+      id: string;
+      email: string;
+      name: string;
+      bio?: string;
+      phoneNumber?: string;
+      profilePhotoUrl?: string;
+      studentEmail?: string;
+      studentVerified: boolean;
+      sellerBadge: string;
+      rating: number;
+      totalSales: number;
+      totalPurchases: number;
+      createdAt: string;
+      lastLoginAt: string;
+    }
+    ```
+    
+    Next.js Example (Server Component):
+    ```tsx
+    // app/dashboard/page.tsx
+    import { api } from '@/lib/api';
+    import { cookies } from 'next/headers';
+    
+    export default async function DashboardPage() {
+      try {
+        // Server components can access cookies
+        const user = await api.get<UserProfileResponse>('/api/auth/me');
+        
+        return (
+          <div>
+            <h1>Welcome, {user.name}!</h1>
+            <p>Email: {user.email}</p>
+            {user.studentVerified && <span>✓ Verified Student</span>}
+          </div>
+        );
+      } catch (error) {
+        // Not logged in, redirect to login
+        redirect('/login');
+      }
+    }
+    ```
+    
+    Next.js Example (Client Component with React Query):
+    ```tsx
+    'use client';
+    import { useQuery } from '@tanstack/react-query';
+    import { api } from '@/lib/api';
+    
+    export function useCurrentUser() {
+      return useQuery({
+        queryKey: ['currentUser'],
+        queryFn: () => api.get<UserProfileResponse>('/api/auth/me'),
+        retry: false, // Don't retry on 401
+      });
+    }
+    
+    // Usage in component:
+    function ProfileCard() {
+      const { data: user, isLoading, error } = useCurrentUser();
+      
+      if (isLoading) return <div>Loading...</div>;
+      if (error) return <div>Not logged in</div>;
+      
+      return (
+        <div>
+          <img src={user.profilePhotoUrl} alt={user.name} />
+          <h2>{user.name}</h2>
+          <p>{user.email}</p>
+        </div>
+      );
+    }
+    ```
+
+16. GET /api/auth/session-info
+    Description: Get detailed session information
+    Auth: Required
+    Response: Session details with expiry time
+    
+    Response Type:
+    ```typescript
+    interface SessionInfo {
+      sessionId: string;
+      creationTime: number;
+      lastAccessedTime: number;
+      maxInactiveIntervalSeconds: number;
+      now: number;
+      expiresAt: number;
+      secondsRemaining: number;
+      principalName: string;
+      authenticated: boolean;
+    }
+    ```
+
+17. POST /api/auth/logout
+    Description: Logout from current device
+    Auth: Required
+    Response: "Logged out successfully."
+    
+    Next.js Example:
+    ```tsx
+    'use client';
+    import { useRouter } from 'next/navigation';
+    
+    export function LogoutButton() {
+      const router = useRouter();
+      
+      async function handleLogout() {
+        try {
+          await api.post('/api/auth/logout');
+          router.push('/login');
+          router.refresh(); // Refresh server components
+        } catch (error) {
+          console.error('Logout failed:', error);
+        }
+      }
+      
+      return <button onClick={handleLogout}>Logout</button>;
+    }
+    ```
+
+18. POST /api/auth/change-password
+    Description: Change user password
+    Auth: Required
+    Body: { currentPassword, newPassword }
+    Response: "Password changed successfully."
+    
+    Next.js Example:
+    ```tsx
+    async function changePassword(
+      currentPassword: string,
+      newPassword: string
+    ) {
+      try {
+        await api.post('/api/auth/change-password', {
+          currentPassword,
+          newPassword,
+        });
+        alert('Password changed successfully!');
+      } catch (error) {
+        alert('Failed: ' + error.message);
+      }
+    }
+    ```
+
+19. PUT /api/auth/profile
+    Description: Update user profile
+    Auth: Required
+    Body: { name?, bio?, phoneNumber? } (all optional)
+    Response: Updated UserProfileResponse
+    
+    Next.js Example:
+    ```tsx
+    async function updateProfile(updates: {
+      name?: string;
+      bio?: string;
+      phoneNumber?: string;
+    }) {
+      const user = await api.put<UserProfileResponse>(
+        '/api/auth/profile',
+        updates
+      );
+      console.log('Updated user:', user);
+    }
+    ```
+
+20. PUT /api/auth/profile-photo
+    Description: Update profile photo URL
+    Auth: Required
+    Body: "https://example.com/photo.jpg" (raw string)
+    Response: Updated UserProfileResponse
+    
+    Note: You need to upload the image first using POST /api/images/upload-profile-photo
+
+21. GET /api/auth/sessions
+    Description: Get all active login sessions
+    Auth: Required
+    Response: UserSessionResponse[]
+    
+    Next.js Example:
+    ```tsx
+    async function listSessions() {
+      const sessions = await api.get<UserSessionResponse[]>(
+        '/api/auth/sessions'
+      );
+      
+      return (
+        <ul>
+          {sessions.map(session => (
+            <li key={session.id}>
+              {session.ipAddress} - {session.deviceInfo}
+              <button onClick={() => terminateSession(session.id)}>
+                Logout
+              </button>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    ```
+
+22. DELETE /api/auth/sessions/{sessionId}
+    Description: Terminate a specific session
+    Auth: Required
+    Path: sessionId
+    Response: "Session terminated successfully."
+
+23. GET /api/auth/security-events
+    Description: Get user's security events history
+    Auth: Required
+    Response: SecurityEventResponse[]
+
+24. GET /api/auth/account-stats
+    Description: Get account statistics
+    Auth: Required
+    Response: AccountStatsResponse
+    
+    Response Type:
+    ```typescript
+    interface AccountStatsResponse {
+      totalProducts: number;
+      activeProducts: number;
+      soldProducts: number;
+      totalOrders: number;
+      completedOrders: number;
+      totalRevenue: number;
+      totalSpent: number;
+      averageRating: number;
+      totalReviews: number;
+    }
+    ```
+
+25. POST /api/auth/change-email
+    Description: Initiate email change (sends OTP to new email)
+    Auth: Required
+    Body: { newEmail, password }
+    Response: "Email change OTP sent to new email address."
+
+26. POST /api/auth/verify-email-change
+    Description: Verify new email with OTP
+    Auth: Required
+    Body: { email, otp }
+    Response: "Email changed successfully."
+
+27. DELETE /api/auth/account
+    Description: Delete user account permanently
+    Auth: Required
+    Body: { password }
+    Response: "Account deleted successfully."
+    
+    Next.js Example:
+    ```tsx
+    async function deleteAccount(password: string) {
+      if (!confirm('Are you sure? This cannot be undone!')) return;
+      
+      try {
+        await api.delete('/api/auth/account', { password });
+        router.push('/');
+      } catch (error) {
+        alert('Failed to delete account: ' + error.message);
+      }
+    }
+    ```
+
+================================================================================
+                    🎓 STUDENT VERIFICATION ENDPOINTS
+================================================================================
+
+28. POST /api/student-verification/send-otp
+    Description: Send OTP to VIT student email
+    Auth: Required
+    Body: { studentEmail }
+    Response: "OTP sent to student email."
+    
+    Valid email domains:
+    - @vitstudent.ac.in
+    - @vit.ac.in
+    - @vitchennai.ac.in
+    
+    Next.js Example:
+    ```tsx
+    async function sendVerificationOTP(studentEmail: string) {
+      try {
+        await api.post('/api/student-verification/send-otp', {
+          studentEmail,
+        });
+        alert('OTP sent! Check your VIT email.');
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+29. POST /api/student-verification/verify-otp
+    Description: Verify student email with OTP
+    Auth: Required
+    Body: { studentEmail, otp, universityId?, graduationYear?, department? }
+    Response: "Student email verified successfully."
+    
+    Next.js Example:
+    ```tsx
+    async function verifyStudent(data: {
+      studentEmail: string;
+      otp: string;
+      universityId?: string;
+      graduationYear?: number;
+      department?: string;
+    }) {
+      try {
+        await api.post('/api/student-verification/verify-otp', data);
+        alert('Verified as VIT student! ✓');
+        // User now has studentVerified = true
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+================================================================================
+                        📦 PRODUCT ENDPOINTS
+================================================================================
+
+─────────────────────── PUBLIC (No Auth Required) ──────────────────────────
+
+30. GET /api/products
+    Description: Get all approved products (paginated)
+    Auth: None
+    Query Params: page?, size?, sortBy?
+    Response: PagedResponse<ProductResponse>
+
+    
+    Sort Options:
+    - price_asc: Lowest price first
+    - price_desc: Highest price first  
+    - date_asc: Oldest first
+    - date_desc: Newest first (default)
+    - popularity: Most viewed/favorited
+    
+    Response Type:
+    ```typescript
+    interface PagedResponse<T> {
+      content: T[];
+      page: number;
+      size: number;
+      totalElements: number;
+      totalPages: number;
+      last: boolean;
+    }
+    
+    interface ProductResponse {
+      id: string;
+      title: string;
+      description: string;
+      price: number;
+      originalPrice?: number;
+      isNegotiable: boolean;
+      condition: string; // NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+      brand?: string;
+      model?: string;
+      category: CategoryResponse;
+      seller: {
+        id: string;
+        name: string;
+        profilePhotoUrl?: string;
+        studentVerified: boolean;
+        sellerBadge: string;
+        rating: number;
+      };
+      imageUrls: string[];
+      tags: string[];
+      pickupLocation?: string;
+      deliveryAvailable: boolean;
+      views: number;
+      favorites: number;
+      status: string; // PENDING, APPROVED, REJECTED, SOLD, DELETED
+      createdAt: string;
+      updatedAt: string;
+    }
+    ```
+    
+    Next.js Example (Server Component with Infinite Scroll):
+    ```tsx
+    // app/products/page.tsx
+    import { api } from '@/lib/api';
+    import { ProductGrid } from '@/components/ProductGrid';
+    
+    interface PageProps {
+      searchParams: { page?: string; sortBy?: string };
+    }
+    
+    export default async function ProductsPage({ searchParams }: PageProps) {
+      const page = parseInt(searchParams.page || '0');
+      const sortBy = searchParams.sortBy || 'date_desc';
+      
+      const products = await api.get<PagedResponse<ProductResponse>>(
+        `/api/products?page=${page}&size=20&sortBy=${sortBy}`
+      );
+      
+      return (
+        <div>
+          <h1>All Products</h1>
+          <ProductGrid products={products.content} />
+          <Pagination totalPages={products.totalPages} currentPage={page} />
+        </div>
+      );
+    }
+    ```
+    
+    Next.js Example (Client Component with React Query):
+    ```tsx
+    'use client';
+    import { useInfiniteQuery } from '@tanstack/react-query';
+    
+    export function InfiniteProductList() {
+      const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+      } = useInfiniteQuery({
+        queryKey: ['products'],
+        queryFn: ({ pageParam = 0 }) =>
+          api.get<PagedResponse<ProductResponse>>(
+            `/api/products?page=${pageParam}&size=20`
+          ),
+        getNextPageParam: (lastPage) =>
+          lastPage.last ? undefined : lastPage.page + 1,
+      });
+      
+      return (
+        <div>
+          {data?.pages.map((page) =>
+            page.content.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))
+          )}
+          
+          {hasNextPage && (
+            <button onClick={() => fetchNextPage()}>
+              {isFetchingNextPage ? 'Loading...' : 'Load More'}
+            </button>
+          )}
+        </div>
+      );
+    }
+    ```
+
+31. GET /api/products/category/{categoryId}
+    Description: Get products by category (paginated)
+    Auth: None
+    Path: categoryId
+    Query Params: page?, size?, sortBy?
+    Response: PagedResponse<ProductResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/categories/[categoryId]/page.tsx
+    export default async function CategoryPage({
+      params,
+      searchParams,
+    }: {
+      params: { categoryId: string };
+      searchParams: { page?: string };
+    }) {
+      const page = parseInt(searchParams.page || '0');
+      const products = await api.get<PagedResponse<ProductResponse>>(
+        `/api/products/category/${params.categoryId}?page=${page}`
+      );
+      
+      return <ProductGrid products={products.content} />;
+    }
+    ```
+
+32. POST /api/products/search
+    Description: Advanced product search with filters
+    Auth: None
+    Body: ProductSearchRequest (all fields optional)
+    Response: PagedResponse<ProductResponse>
+    
+    Request Type:
+    ```typescript
+    interface ProductSearchRequest {
+      keyword?: string;
+      categoryId?: string;
+      minPrice?: number;
+      maxPrice?: number;
+      conditions?: string[]; // e.g., ['LIKE_NEW', 'GOOD']
+      location?: string;
+      deliveryAvailable?: boolean;
+      isNegotiable?: boolean;
+      verifiedStudentsOnly?: boolean;
+      sortBy?: string;
+      page?: number;
+      size?: number;
+    }
+    ```
+    
+    Next.js Example:
+    ```tsx
+    'use client';
+    import { useState } from 'react';
+    
+    export function ProductSearchForm() {
+      const [results, setResults] = useState<ProductResponse[]>([]);
+      const [loading, setLoading] = useState(false);
+      
+      async function handleSearch(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        setLoading(true);
+        
+        const formData = new FormData(e.currentTarget);
+        const searchParams: ProductSearchRequest = {
+          keyword: formData.get('keyword') as string,
+          minPrice: parseFloat(formData.get('minPrice') as string) || undefined,
+          maxPrice: parseFloat(formData.get('maxPrice') as string) || undefined,
+          verifiedStudentsOnly: formData.get('verifiedOnly') === 'on',
+          sortBy: 'price_asc',
+          page: 0,
+          size: 20,
+        };
+        
+        try {
+          const response = await api.post<PagedResponse<ProductResponse>>(
+            '/api/products/search',
+            searchParams
+          );
+          setResults(response.content);
+        } catch (error) {
+          console.error(error);
+        } finally {
+          setLoading(false);
+        }
+      }
+      
+      return (
+        <form onSubmit={handleSearch}>
+          <input name="keyword" placeholder="Search products..." />
+          <input name="minPrice" type="number" placeholder="Min price" />
+          <input name="maxPrice" type="number" placeholder="Max price" />
+          <label>
+            <input name="verifiedOnly" type="checkbox" />
+            Verified students only
+          </label>
+          <button disabled={loading}>Search</button>
+          
+          <div>
+            {results.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </form>
+      );
+    }
+    ```
+
+33. GET /api/products/featured
+    Description: Get featured products
+    Auth: None
+    Query Params: page?, size?
+    Response: PagedResponse<ProductResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/page.tsx - Homepage
+    export default async function HomePage() {
+      const featured = await api.get<PagedResponse<ProductResponse>>(
+        '/api/products/featured?size=6'
+      );
+      
+      return (
+        <section>
+          <h2>Featured Products</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {featured.content.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </section>
+      );
+    }
+    ```
+
+34. GET /api/products/{productId}
+    Description: Get single product details
+    Auth: None
+    Path: productId
+    Response: ProductResponse
+    
+    Next.js Example:
+    ```tsx
+    // app/products/[productId]/page.tsx
+    export default async function ProductDetailPage({
+      params,
+    }: {
+      params: { productId: string };
+    }) {
+      const product = await api.get<ProductResponse>(
+        `/api/products/${params.productId}`
+      );
+      
+      return (
+        <div>
+          <h1>{product.title}</h1>
+          <p className="text-3xl font-bold">₹{product.price}</p>
+          {product.originalPrice && (
+            <p className="line-through text-gray-500">
+              ₹{product.originalPrice}
+            </p>
+          )}
+          <p>{product.description}</p>
+          
+          <div>
+            <span>Condition: {product.condition}</span>
+            {product.isNegotiable && <span> • Negotiable</span>}
+          </div>
+          
+          <div>
+            <img src={product.seller.profilePhotoUrl} alt={product.seller.name} />
+            <span>{product.seller.name}</span>
+            {product.seller.studentVerified && <span>✓ Verified Student</span>}
+            <span>⭐ {product.seller.rating}/5</span>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            {product.imageUrls.map((url, i) => (
+              <img key={i} src={url} alt={`Product ${i + 1}`} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    ```
+
+─────────────────────── PROTECTED (Auth Required) ───────────────────────────
+
+35. POST /api/products
+    Description: Create new product listing
+    Auth: Required
+    Body: ProductCreateRequest
+    Response: ProductResponse
+    
+    Request Type:
+    ```typescript
+    interface ProductCreateRequest {
+      title: string;
+      description: string;
+      price: number;
+      originalPrice?: number;
+      isNegotiable?: boolean;
+      condition: string; // NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+      brand?: string;
+      model?: string;
+      categoryId: string;
+      tags?: string[];
+      pickupLocation?: string;
+      deliveryAvailable?: boolean;
+      imageUrls?: string[]; // Upload images first via /api/images/upload-product
+    }
+    ```
+    
+    Next.js Example (Server Action):
+    ```tsx
+    // app/actions/products.ts
+    'use server';
+    
+    export async function createProduct(formData: FormData) {
+      const data: ProductCreateRequest = {
+        title: formData.get('title') as string,
+        description: formData.get('description') as string,
+        price: parseFloat(formData.get('price') as string),
+        condition: formData.get('condition') as string,
+        categoryId: formData.get('categoryId') as string,
+        isNegotiable: formData.get('negotiable') === 'on',
+        deliveryAvailable: formData.get('delivery') === 'on',
+      };
+      
+      try {
+        const product = await api.post<ProductResponse>('/api/products', data);
+        return { success: true, product };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+    ```
+    
+    Client Component Example:
+    ```tsx
+    'use client';
+    import { useRouter } from 'next/navigation';
+    
+    export function CreateProductForm() {
+      const router = useRouter();
+      
+      async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        
+        const data: ProductCreateRequest = {
+          title: formData.get('title') as string,
+          description: formData.get('description') as string,
+          price: parseFloat(formData.get('price') as string),
+          condition: formData.get('condition') as string,
+          categoryId: formData.get('categoryId') as string,
+        };
+        
+        try {
+          const product = await api.post<ProductResponse>(
+            '/api/products',
+            data
+          );
+          alert('Product created! Awaiting admin approval.');
+          router.push(`/products/${product.id}`);
+        } catch (error) {
+          alert('Failed: ' + error.message);
+        }
+      }
+      
+      return (
+        <form onSubmit={handleSubmit}>
+          <input name="title" required placeholder="Product Title" />
+          <textarea name="description" required placeholder="Description" />
+          <input name="price" type="number" required placeholder="Price (₹)" />
+          <select name="condition" required>
+            <option value="NEW">New</option>
+            <option value="LIKE_NEW">Like New</option>
+            <option value="GOOD">Good</option>
+            <option value="FAIR">Fair</option>
+            <option value="POOR">Poor</option>
+            <option value="USED">Used</option>
+          </select>
+          <button>Create Product</button>
+        </form>
+      );
+    }
+    ```
+
+36. GET /api/products/my-products
+    Description: Get current user's products
+    Auth: Required
+    Query Params: page?, size?, sortBy?
+    Response: PagedResponse<ProductResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/dashboard/my-products/page.tsx
+    export default async function MyProductsPage() {
+      const products = await api.get<PagedResponse<ProductResponse>>(
+        '/api/products/my-products?page=0&size=20'
+      );
+      
+      return (
+        <div>
+          <h1>My Listings</h1>
+          {products.content.map(product => (
+            <div key={product.id}>
+              <h3>{product.title}</h3>
+              <p>Status: {product.status}</p>
+              <p>Views: {product.views}</p>
+              <p>Favorites: {product.favorites}</p>
+              <button onClick={() => router.push(`/products/${product.id}/edit`)}>
+                Edit
+              </button>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    ```
+
+37. PUT /api/products/{productId}
+    Description: Update product listing (must be owner)
+    Auth: Required
+    Path: productId
+    Body: ProductUpdateRequest (all fields optional)
+    Response: ProductResponse
+    
+    Next.js Example:
+    ```tsx
+    async function updateProduct(productId: string, updates: Partial<ProductCreateRequest>) {
+      try {
+        const product = await api.put<ProductResponse>(
+          `/api/products/${productId}`,
+          updates
+        );
+        alert('Product updated successfully!');
+        return product;
+      } catch (error) {
+        alert('Update failed: ' + error.message);
+      }
+    }
+    ```
+
+38. DELETE /api/products/{productId}
+    Description: Delete product listing (must be owner)
+    Auth: Required
+    Path: productId
+    Response: "Product deleted successfully."
+    
+    Next.js Example:
+    ```tsx
+    async function deleteProduct(productId: string) {
+      if (!confirm('Delete this product?')) return;
+      
+      try {
+        await api.delete(`/api/products/${productId}`);
+        alert('Product deleted');
+        router.push('/dashboard/my-products');
+      } catch (error) {
+        alert('Delete failed: ' + error.message);
+      }
+    }
+    ```
+
+================================================================================
+                        📂 CATEGORY ENDPOINTS
+================================================================================
+
+39. GET /api/categories
+    Description: Get all categories (flat list)
+    Auth: None
+    Response: CategoryResponse[]
+    
+    Response Type:
+    ```typescript
+    interface CategoryResponse {
+      id: string;
+      name: string;
+      slug: string;
+      iconUrl?: string;
+      parentId?: string;
+      displayOrder: number;
+    }
+    ```
+    
+    Next.js Example:
+    ```tsx
+    // components/CategoryList.tsx
+    export async function CategoryList() {
+      const categories = await api.get<CategoryResponse[]>('/api/categories');
+      
+      return (
+        <ul>
+          {categories.map(cat => (
+            <li key={cat.id}>
+              <Link href={`/categories/${cat.id}`}>
+                {cat.iconUrl && <img src={cat.iconUrl} alt="" />}
+                {cat.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    ```
+
+40. GET /api/categories/main
+    Description: Get main categories with subcategories (hierarchical)
+    Auth: None
+    Response: CategoryResponse[] (with subcategories property)
+    
+    Next.js Example:
+    ```tsx
+    export async function CategoryNav() {
+      const mainCategories = await api.get<CategoryResponse[]>(
+        '/api/categories/main'
+      );
+      
+      return (
+        <nav>
+          {mainCategories.map(main => (
+            <div key={main.id}>
+              <h3>{main.name}</h3>
+              {main.subcategories?.map(sub => (
+                <Link key={sub.id} href={`/categories/${sub.id}`}>
+                  {sub.name}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+      );
+    }
+    ```
+
+41. GET /api/categories/{categoryId}
+    Description: Get category by ID
+    Auth: None
+    Path: categoryId
+    Response: CategoryResponse
+
+42. GET /api/categories/{parentId}/subcategories
+    Description: Get subcategories of a parent
+    Auth: None
+    Path: parentId
+    Response: CategoryResponse[]
+
+================================================================================
+                        ❤️ FAVORITE ENDPOINTS
+================================================================================
+
+43. POST /api/favorites/{productId}
+    Description: Add product to favorites
+    Auth: Required
+    Path: productId
+    Response: FavoriteResponse
+    
+    Next.js Example:
+    ```tsx
+    async function toggleFavorite(productId: string, isFavorited: boolean) {
+      try {
+        if (isFavorited) {
+          await api.delete(`/api/favorites/${productId}`);
+        } else {
+          await api.post(`/api/favorites/${productId}`);
+        }
+        // Refresh or update UI
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+44. DELETE /api/favorites/{productId}
+    Description: Remove product from favorites
+    Auth: Required
+    Path: productId
+    Response: "Removed from favorites."
+
+45. GET /api/favorites
+    Description: Get user's favorite products
+    Auth: Required
+    Query Params: page?, size?
+    Response: PagedResponse<FavoriteResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/dashboard/favorites/page.tsx
+    export default async function FavoritesPage() {
+      const favorites = await api.get<PagedResponse<FavoriteResponse>>(
+        '/api/favorites?page=0&size=20'
+      );
+      
+      return (
+        <div>
+          <h1>My Favorites ({favorites.totalElements})</h1>
+          <ProductGrid products={favorites.content.map(f => f.product)} />
+        </div>
+      );
+    }
+    ```
+
+46. GET /api/favorites/check/{productId}
+    Description: Check if product is favorited
+    Auth: Required
+    Path: productId
+    Response: { isFavorited: boolean }
+    
+    Next.js Example:
+    ```tsx
+    'use client';
+    import { useQuery } from '@tanstack/react-query';
+    
+    export function FavoriteButton({ productId }: { productId: string }) {
+      const { data } = useQuery({
+        queryKey: ['favorite', productId],
+        queryFn: () =>
+          api.get<{ isFavorited: boolean }>(
+            `/api/favorites/check/${productId}`
+          ),
+      });
+      
+      return (
+        <button onClick={() => toggleFavorite(productId, data?.isFavorited)}>
+          {data?.isFavorited ? '❤️ Favorited' : '🤍 Favorite'}
+        </button>
+      );
+    }
+    ```
+
+================================================================================
+                        🛒 ORDER ENDPOINTS
+================================================================================
+
+47. POST /api/orders
+    Description: Create new order
+    Auth: Required
+    Body: OrderCreateRequest
+    Response: OrderResponse
+    
+    Request Type:
+    ```typescript
+    interface OrderCreateRequest {
+      productId: string;
+      deliveryMethod: string; // PICKUP, DELIVERY, SHIPPING
+      deliveryAddress?: string;
+      notes?: string;
+    }
+    ```
+    
+    Next.js Example:
+    ```tsx
+    async function createOrder(productId: string, deliveryMethod: string) {
+      try {
+        const order = await api.post<OrderResponse>('/api/orders', {
+          productId,
+          deliveryMethod,
+        });
+        alert('Order created! Contact seller via messages.');
+        router.push(`/dashboard/orders/buyer`);
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+48. PUT /api/orders/{orderId}
+    Description: Update order status
+    Auth: Required (buyer or seller)
+    Path: orderId
+    Body: OrderUpdateRequest
+    Response: OrderResponse
+    
+    Request Type:
+    ```typescript
+    interface OrderUpdateRequest {
+      status: string; // PENDING, CONFIRMED, COMPLETED, CANCELLED, DISPUTED
+      notes?: string;
+    }
+    ```
+
+49. GET /api/orders/buyer
+    Description: Get orders as buyer
+    Auth: Required
+    Query Params: page?, size?
+    Response: PagedResponse<OrderResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/dashboard/orders/buyer/page.tsx
+    export default async function MyOrdersPage() {
+      const orders = await api.get<PagedResponse<OrderResponse>>(
+        '/api/orders/buyer?page=0&size=20'
+      );
+      
+      return (
+        <div>
+          <h1>My Orders</h1>
+          {orders.content.map(order => (
+            <div key={order.id}>
+              <h3>{order.product.title}</h3>
+              <p>Status: {order.status}</p>
+              <p>Seller: {order.seller.name}</p>
+              <p>Total: ₹{order.totalAmount}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    ```
+
+50. GET /api/orders/seller
+    Description: Get orders as seller
+    Auth: Required
+    Query Params: page?, size?
+    Response: PagedResponse<OrderResponse>
+
+51. GET /api/orders/{orderId}
+    Description: Get order details
+    Auth: Required (buyer or seller)
+    Path: orderId
+    Response: OrderResponse
+
+52. DELETE /api/orders/{orderId}
+    Description: Cancel order
+    Auth: Required (buyer or seller)
+    Path: orderId
+    Response: "Order cancelled successfully."
+
+================================================================================
+                        💬 MESSAGING ENDPOINTS
+================================================================================
+
+53. POST /api/messaging/conversations
+    Description: Start new conversation
+    Auth: Required
+    Body: { otherUserId: string }
+    Response: ConversationResponse
+    
+    Next.js Example:
+    ```tsx
+    async function startConversation(sellerId: string) {
+      try {
+        const conversation = await api.post<ConversationResponse>(
+          '/api/messaging/conversations',
+          { otherUserId: sellerId }
+        );
+        router.push(`/messages/${conversation.id}`);
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    ```
+
+54. GET /api/messaging/conversations
+    Description: Get all conversations
+    Auth: Required
+    Query Params: page?, size?
+    Response: PagedResponse<ConversationResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/messages/page.tsx
+    export default async function MessagesPage() {
+      const conversations = await api.get<PagedResponse<ConversationResponse>>(
+        '/api/messaging/conversations?page=0&size=20'
+      );
+      
+      return (
+        <div>
+          <h1>Messages</h1>
+          {conversations.content.map(conv => (
+            <Link key={conv.id} href={`/messages/${conv.id}`}>
+              <div>
+                <img src={conv.otherUser.profilePhotoUrl} />
+                <div>
+                  <h3>{conv.otherUser.name}</h3>
+                  <p>{conv.lastMessage?.content}</p>
+                  {conv.unreadCount > 0 && (
+                    <span className="badge">{conv.unreadCount}</span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      );
+    }
+    ```
+
+55. POST /api/messaging/conversations/{conversationId}/messages
+    Description: Send message in conversation
+    Auth: Required
+    Path: conversationId
+    Body: MessageRequest
+    Response: MessageResponse
+    
+    Request Type:
+    ```typescript
+    interface MessageRequest {
+      content: string;
+      type?: string; // TEXT (default), IMAGE, FILE
+    }
+    ```
+
+56. GET /api/messaging/conversations/{conversationId}/messages
+    Description: Get messages in conversation
+    Auth: Required
+    Path: conversationId
+    Query Params: page?, size?
+    Response: PagedResponse<MessageResponse>
+    
+    Next.js Example:
+    ```tsx
+    'use client';
+    export function ConversationView({ conversationId }: { conversationId: string }) {
+      const { data: messages } = useQuery({
+        queryKey: ['messages', conversationId],
+        queryFn: () =>
+          api.get<PagedResponse<MessageResponse>>(
+            `/api/messaging/conversations/${conversationId}/messages?size=50`
+          ),
+        refetchInterval: 3000, // Poll every 3 seconds
+      });
+      
+      return (
+        <div className="flex flex-col h-screen">
+          <div className="flex-1 overflow-y-auto">
+            {messages?.content.map(msg => (
+              <div key={msg.id} className={msg.isCurrentUser ? 'sent' : 'received'}>
+                <p>{msg.content}</p>
+                <span>{new Date(msg.sentAt).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+          
+          <form onSubmit={handleSendMessage}>
+            <input name="message" placeholder="Type a message..." />
+            <button>Send</button>
+          </form>
+        </div>
+      );
+    }
+    ```
+
+57. PUT /api/messaging/conversations/{conversationId}/read
+    Description: Mark conversation as read
+    Auth: Required
+    Path: conversationId
+    Response: "Conversation marked as read."
+
+58. GET /api/messaging/unread-count
+    Description: Get total unread message count
+    Auth: Required
+    Response: number
+    
+    Next.js Example:
+    ```tsx
+    'use client';
+    export function UnreadBadge() {
+      const { data: count } = useQuery({
+        queryKey: ['unreadMessages'],
+        queryFn: () => api.get<number>('/api/messaging/unread-count'),
+        refetchInterval: 10000, // Poll every 10 seconds
+      });
+      
+      if (!count || count === 0) return null;
+      
+      return <span className="badge">{count}</span>;
+    }
+    ```
+
+================================================================================
+                        🔔 NOTIFICATION ENDPOINTS
+================================================================================
+
+59. GET /api/notifications
+    Description: Get user notifications
+    Auth: Required
+    Query Params: page?, size?
+    Response: PagedResponse<NotificationResponse>
+    
+    Next.js Example:
+    ```tsx
+    // app/notifications/page.tsx
+    export default async function NotificationsPage() {
+      const notifications = await api.get<PagedResponse<NotificationResponse>>(
+        '/api/notifications?page=0&size=20'
+      );
+      
+      return (
+        <div>
+          <h1>Notifications</h1>
+          {notifications.content.map(notif => (
+            <div key={notif.id} className={notif.read ? 'opacity-50' : ''}>
+              <p>{notif.message}</p>
+              <span>{new Date(notif.createdAt).toLocaleString()}</span>
+              {!notif.read && (
+                <button onClick={() => markAsRead(notif.id)}>
+                  Mark as read
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    ```
+
+60. GET /api/notifications/unread-count
+    Description: Get unread notification count
+    Auth: Required
+    Response: number
+
+61. PUT /api/notifications/{notificationId}/read
+    Description: Mark notification as read
+    Auth: Required
+    Path: notificationId
+    Response: "Notification marked as read."
+
+62. PUT /api/notifications/mark-all-read
+    Description: Mark all notifications as read
+    Auth: Required
+    Response: "All notifications marked as read."
+
+================================================================================
+                        ⭐ REVIEW ENDPOINTS
+================================================================================
+
+63. POST /api/reviews/products
+    Description: Create product review
+    Auth: Required (must have purchased)
+    Body: ProductReviewRequest
+    Response: ProductReviewResponse
+    
+    Request Type:
+    ```typescript
+    interface ProductReviewRequest {
+      productId: string;
+      rating: number; // 1-5
+      comment?: string;
+    }
+    ```
+
+64. GET /api/reviews/products/{productId}
+    Description: Get reviews for a product
+    Auth: None
+    Path: productId
+    Query Params: page?, size?
+    Response: PagedResponse<ProductReviewResponse>
+
+65. POST /api/reviews/users
+    Description: Create user (seller/buyer) review
+    Auth: Required
+    Body: UserReviewRequest
+    Response: UserReviewResponse
+
+66. GET /api/reviews/users/{userId}
+    Description: Get reviews for a user
+    Auth: None
+    Path: userId
+    Query Params: page?, size?
+    Response: PagedResponse<UserReviewResponse>
+
+================================================================================
+                        🖼️ IMAGE UPLOAD ENDPOINTS
+================================================================================
+
+67. GET /api/images/default-avatar.png
+    Description: Get default user avatar
+    Auth: None
+    Response: PNG image file
+
+68. POST /api/images/upload-profile-photo
+    Description: Upload user profile photo
+    Auth: Required
+    Content-Type: multipart/form-data
+    Form Field: file (PNG, JPG, JPEG)
+    Response: Image URL string
+    
+    Next.js Example (Client Component):
+    ```tsx
+    'use client';
+    export function ProfilePhotoUpload() {
+      async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+          const imageUrl = await fetch('http://localhost:8080/api/images/upload-profile-photo', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          }).then(res => res.text());
+          
+          // Now update profile with this URL
+          await api.put('/api/auth/profile-photo', imageUrl);
+          alert('Profile photo updated!');
+        } catch (error) {
+          alert('Upload failed: ' + error.message);
+        }
+      }
+      
+      return <input type="file" accept="image/*" onChange={handleUpload} />;
+    }
+    ```
+
+69. GET /api/images/profile-photos/{filename}
+    Description: Get uploaded profile photo
+    Auth: None
+    Path: filename
+    Response: Image file
+
+================================================================================
+                        👑 ADMIN ENDPOINTS (ADMIN ROLE ONLY)
+================================================================================
+
+70. GET /api/admin/dashboard
+    Description: Get admin dashboard stats
+    Auth: Required (ADMIN)
+    Response: AdminDashboardResponse
+
+71. GET /api/admin/products
+    Description: Get all products for moderation
+    Auth: Required (ADMIN)
+    Query Params: status?, page?, size?
+    Response: PagedResponse<ProductResponse>
+    
+    Status values: PENDING, APPROVED, REJECTED, SOLD, DELETED
+
+72. PUT /api/admin/products/{productId}
+    Description: Admin product action (approve/reject)
+    Auth: Required (ADMIN)
+    Path: productId
+    Body: AdminProductActionRequest
+    Response: ProductResponse
+    
+    Request Type:
+    ```typescript
+    interface AdminProductActionRequest {
+      action: string; // APPROVE, REJECT, FEATURE, UNFEATURE
+      reason?: string;
+    }
+    ```
+
+73. GET /api/admin/products/search
+    Description: Search products (admin view)
+    Auth: Required (ADMIN)
+    Query Params: keyword?, status?, page?, size?
+    Response: PagedResponse<ProductResponse>
+
+74. GET /api/admin/users
+    Description: Get all users
+    Auth: Required (ADMIN)
+    Query Params: page?, size?
+    Response: PagedResponse<UserResponse>
+
+75. PUT /api/admin/users/{userId}
+    Description: Admin user action (ban/unban/verify)
+    Auth: Required (ADMIN)
+    Path: userId
+    Body: AdminUserActionRequest
+    Response: UserResponse
+    
+    Request Type:
+    ```typescript
+    interface AdminUserActionRequest {
+      action: string; // BAN, UNBAN, VERIFY, REMOVE_VERIFICATION
+      reason?: string;
+    }
+    ```
+
+76. GET /api/admin/users/search
+    Description: Search users (admin view)
+    Auth: Required (ADMIN)
+    Query Params: keyword?, page?, size?
+    Response: PagedResponse<UserResponse>
+
+================================================================================
+                        📊 COMMON TYPES REFERENCE
+================================================================================
+
+```typescript
+// Enums
+type UserRole = 'USER' | 'ADMIN';
+
+type SellerBadge = 
+  | 'NEW_SELLER'
+  | 'ACTIVE_SELLER'
+  | 'TRUSTED_SELLER'
+  | 'DEALHARBOR_CHOICE'
+  | 'PREMIUM_SELLER'
+  | 'LEGENDARY_SELLER';
+
+type ProductCondition = 'NEW' | 'LIKE_NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'USED';
+
+type ProductStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SOLD' | 'DELETED';
+
+type OrderStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
+
+type DeliveryMethod = 'PICKUP' | 'DELIVERY' | 'SHIPPING';
+
+type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM' | 'ORDER_UPDATE';
+
+type NotificationType =
+  | 'ORDER_CREATED'
+  | 'ORDER_CONFIRMED'
+  | 'ORDER_COMPLETED'
+  | 'ORDER_CANCELLED'
+  | 'PRODUCT_APPROVED'
+  | 'PRODUCT_REJECTED'
+  | 'PRODUCT_SOLD'
+  | 'NEW_MESSAGE'
+  | 'NEW_REVIEW'
+  | 'PRICE_DROP'
+  | 'BACK_IN_STOCK'
+  | 'ACCOUNT_VERIFIED'
+  | 'SECURITY_ALERT'
+  | 'SYSTEM_ANNOUNCEMENT';
+
+// Error Response
+interface ErrorResponse {
+  error: true;
+  message: string;
+  timestamp: number;
+}
+```
+
+================================================================================
+                        🚨 COMMON ERROR RESPONSES
+================================================================================
+
+HTTP Status Codes:
+- 200 OK: Success
+- 400 Bad Request: Invalid input data
+- 401 Unauthorized: Not logged in or session expired
+- 403 Forbidden: Logged in but don't have permission
+- 404 Not Found: Resource doesn't exist
+- 500 Internal Server Error: Server-side error
+
+Example Error Response:
+```json
+{
+  "error": true,
+  "message": "Cannot change session ID. There is no session associated with this request.",
+  "timestamp": 1761039042326
+}
+```
+
+Handling Errors in Next.js:
+```tsx
+try {
+  const data = await api.get('/api/auth/me');
+} catch (error) {
+  if (error.message.includes('401')) {
+    // Not logged in - redirect to login
+    router.push('/login');
+  } else if (error.message.includes('403')) {
+    // Forbidden - show access denied
+    alert('Access denied');
+  } else {
+    // Other error
+    alert('Error: ' + error.message);
+  }
+}
+```
+
+================================================================================
+                        🔧 NEXT.JS 15 BEST PRACTICES
+================================================================================
+
+1. **Use Server Components for Initial Data**
+   ```tsx
+   // app/products/page.tsx (Server Component)
+   export default async function ProductsPage() {
+     const products = await api.get<ProductResponse[]>('/api/products');
+     return <ProductGrid products={products} />;
+   }
+   ```
+
+2. **Use Client Components for Interactivity**
+   ```tsx
+   'use client';
+   // components/AddToFavorites.tsx (Client Component)
+   export function AddToFavorites({ productId }: { productId: string }) {
+     const [favorited, setFavorited] = useState(false);
+     // ... interactive logic
+   }
+   ```
+
+3. **Use React Query for Client-Side Data Fetching**
+   ```tsx
+   // lib/queries.ts
+   export function useProducts() {
+     return useQuery({
+       queryKey: ['products'],
+       queryFn: () => api.get<ProductResponse[]>('/api/products'),
+     });
+   }
+   ```
+
+4. **Use Server Actions for Mutations**
+   ```tsx
+   // app/actions/products.ts
+   'use server';
+   export async function createProduct(formData: FormData) {
+     // Server-side mutation
+     return await api.post('/api/products', data);
+   }
+   ```
+
+5. **Handle Authentication State**
+   ```tsx
+   // components/AuthProvider.tsx
+   'use client';
+   export function AuthProvider({ children }: { children: React.ReactNode }) {
+     const { data: user } = useQuery({
+       queryKey: ['currentUser'],
+       queryFn: () => api.get('/api/auth/me'),
+       retry: false,
+     });
+     
+     return (
+       <AuthContext.Provider value={{ user }}>
+         {children}
+       </AuthContext.Provider>
+     );
+   }
+   ```
+
+6. **Middleware for Protected Routes**
+   ```tsx
+   // middleware.ts
+   export async function middleware(request: NextRequest) {
+     try {
+       await fetch('http://localhost:8080/api/auth/me', {
+         credentials: 'include',
+         headers: {
+           cookie: request.headers.get('cookie') || '',
+         },
+       });
+       return NextResponse.next();
+     } catch {
+       return NextResponse.redirect(new URL('/login', request.url));
+     }
+   }
+   
+   export const config = {
+     matcher: ['/dashboard/:path*', '/orders/:path*'],
+   };
+   ```
+
+================================================================================
+                        📝 QUICK TESTING SEQUENCE
+================================================================================
+
+1. Health Check
+   ```bash
+   curl http://localhost:8080/health
+   ```
+
+2. Register User
+   ```bash
+   curl -X POST http://localhost:8080/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test2@example.com","password":"Test123!","name":"Test User"}'
+   ```
+
+3. Verify Email (check console for OTP)
+   ```bash
+   curl -X POST http://localhost:8080/api/auth/verify \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test2@example.com","otp":"123456"}'
+   ```
+
+4. Login (get session cookie)
+   ```bash
+   curl -X POST http://localhost:8080/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test2@example.com","password":"Test123!"}' \
+     -c cookies.txt
+   ```
+
+5. Get Profile (use session cookie)
+   ```bash
+   curl http://localhost:8080/api/auth/me -b cookies.txt
+   ```
+
+6. Browse Products
+   ```bash
+   curl http://localhost:8080/api/products?page=0&size=10
+   ```
+
+================================================================================
+                        💡 TIPS FOR JUNIOR DEVELOPERS
+================================================================================
+
+1. **Always Use credentials: 'include'**
+   This is THE MOST IMPORTANT thing! Without it, cookies won't be sent.
+
+2. **Don't Store Session Manually**
+   The browser handles JSESSIONID cookies automatically. Don't try to save
+   them in localStorage or state.
+
+3. **Check Network Tab**
+   Open Chrome DevTools → Network → Look for:
+   - Set-Cookie header in login response
+   - Cookie header in subsequent requests
+
+4. **Handle 401 Errors**
+   If you get 401, it means session expired. Redirect to login.
+
+5. **Use TypeScript Types**
+   Copy the interface definitions from this guide into your project for
+   type safety.
+
+6. **Test with curl First**
+   Before writing Next.js code, test the endpoint with curl to understand
+   the expected request/response.
+
+7. **Use React Query for Data Fetching**
+   It handles caching, loading states, and errors automatically.
+
+8. **Separate Concerns**
+   - Server Components: Initial data loading
+   - Client Components: Interactivity
+   - Server Actions: Form submissions
+
+9. **Environment Variables**
+   ```env
+   # .env.local
+   NEXT_PUBLIC_API_URL=http://localhost:8080
+   ```
+
+10. **CORS Configuration**
+    Backend is configured for:
+    - http://localhost:3000
+    - http://127.0.0.1:3000
+    
+    If using different port, ask backend team to add it.
+
+================================================================================
+                        📚 ADDITIONAL RESOURCES
+================================================================================
+
+- Next.js 15 Docs: https://nextjs.org/docs
+- React Query: https://tanstack.com/query/latest
+- Fetch API: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
+- HTTP Status Codes: https://httpstatuses.com/
+
+================================================================================
+                        🎉 YOU'RE READY TO BUILD!
+================================================================================
+
+Start with the authentication flow:
+1. Create login page
+2. Fetch user profile (GET /api/auth/me)
+3. Display products (GET /api/products)
+4. Add interactivity (favorites, cart, etc.)
+
+Good luck! 🚀
+
+================================================================================
+                        END OF API DOCUMENTATION
+================================================================================
+
+27. POST /api/products/search
+    Description: Advanced product search
+    Authentication: None
+    Content-Type: application/json
+    
+    Request Body (all fields optional):
+    {
+      "keyword": "macbook",
+      "categoryId": "cat-123",
+      "minPrice": 50000.00,
+      "maxPrice": 100000.00,
+      "conditions": ["LIKE_NEW", "GOOD"],
+      "location": "VIT Campus",
+      "deliveryAvailable": false,
+      "isNegotiable": true,
+      "verifiedStudentsOnly": true,
+      "sortBy": "price_asc",
+      "page": 0,
+      "size": 20
+    }
+    
+    Product Conditions: NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+    
+    Example:
+    curl -X POST http://localhost:8080/api/products/search \
+         -H "Content-Type: application/json" \
+         -d '{
+           "keyword": "laptop",
+           "minPrice": 30000,
+           "maxPrice": 80000,
+           "verifiedStudentsOnly": true
+         }'
+
+28. GET /api/products/featured
+    Description: Get featured products
+    Authentication: None
+    Query Parameters: page, size (same as GET /api/products)
+    
+    Example:
+    curl "http://localhost:8080/api/products/featured?page=0&size=5"
+
+29. GET /api/products/{productId}
+    Description: Get product by ID
+    Authentication: None
+    Path Parameter: productId
+    
+    Example:
+    curl http://localhost:8080/api/products/prod-123
+
+30. POST /api/products
+    Description: Create new product listing
+    Authentication: Bearer Token Required
+    Content-Type: application/json
+    
+    Request Body:
+    {
+      "title": "iPhone 13 Pro",
+      "description": "Excellent condition iPhone with all accessories",
+      "price": 65000.00,
+      "originalPrice": 79900.00,
+      "isNegotiable": true,
+      "condition": "LIKE_NEW",
+      "brand": "Apple",
+      "model": "iPhone 13 Pro",
+      "categoryId": "cat-123",
+      "tags": ["iphone", "apple", "smartphone"],
+      "pickupLocation": "VIT Main Campus",
+      "deliveryAvailable": false,
+      "imageUrls": [
+        "/api/images/products/iphone1.jpg",
+        "/api/images/products/iphone2.jpg"
+      ]
+    }
+    
+    Note: Products go to PENDING status and require admin approval
+    
+    Example:
+    curl -X POST http://localhost:8080/api/products \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "title": "Gaming Laptop",
+           "description": "High-performance gaming laptop",
+           "price": 75000.00,
+           "condition": "GOOD",
+           "categoryId": "cat-123"
+         }'
+
+31. GET /api/products/my-products
+    Description: Get current user's products
+    Authentication: Bearer Token Required
+    Query Parameters: page, size, sortBy
+    
+    Example:
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         "http://localhost:8080/api/products/my-products?page=0&size=10"
+
+32. PUT /api/products/{productId}
+    Description: Update product listing
+    Authentication: Bearer Token Required (must be product owner)
+    Content-Type: application/json
+    Path Parameter: productId
+    
+    Request Body: Same as POST /api/products (all fields optional)
+    
+    Example:
+    curl -X PUT http://localhost:8080/api/products/prod-123 \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "title": "Updated iPhone 13 Pro",
+           "price": 60000.00,
+           "isNegotiable": false
+         }'
+
+33. DELETE /api/products/{productId}
+    Description: Delete product listing
+    Authentication: Bearer Token Required (must be product owner)
+    Path Parameter: productId
+    
+    Example:
+    curl -X DELETE http://localhost:8080/api/products/prod-123 \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+================================================================================
+                             CATEGORY ENDPOINTS
+================================================================================
+
+34. GET /api/categories
+    Description: Get all categories (flat list)
+    Authentication: None
+    
+    Example:
+    curl http://localhost:8080/api/categories
+
+35. GET /api/categories/main
+    Description: Get main categories with subcategories (hierarchical)
+    Authentication: None
+    
+    Example:
+    curl http://localhost:8080/api/categories/main
+
+36. GET /api/categories/{categoryId}
+    Description: Get category by ID
+    Authentication: None
+    Path Parameter: categoryId
+    
+    Example:
+    curl http://localhost:8080/api/categories/cat-123
+
+37. GET /api/categories/{parentId}/subcategories
+    Description: Get subcategories of a parent category
+    Authentication: None
+    Path Parameter: parentId
+    
+    Example:
+    curl http://localhost:8080/api/categories/cat-123/subcategories
+
+================================================================================
+                               IMAGE ENDPOINTS
+================================================================================
+
+38. GET /api/images/default-avatar.png
+    Description: Get default user avatar image
+    Authentication: None
+    Response: PNG image file
+    
+    Example:
+    curl http://localhost:8080/api/images/default-avatar.png
+
+39. POST /api/images/upload-profile-photo
+    Description: Upload user profile photo
+    Authentication: Bearer Token Required
+    Content-Type: multipart/form-data
+    
+    Form Data:
+    - file: Image file (PNG, JPG, JPEG)
+    
+    Response: Image URL string
+    
+    Example:
+    curl -X POST http://localhost:8080/api/images/upload-profile-photo \
+         -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         -F "file=@profile.jpg"
+
+40. GET /api/images/profile-photos/{filename}
+    Description: Get profile photo by filename
+    Authentication: None
+    Path Parameter: filename
+    Response: Image file
+    
+    Example:
+    curl http://localhost:8080/api/images/profile-photos/1640995200000_profile.jpg
+
+================================================================================
+                              ERROR RESPONSES
+================================================================================
+
+Standard Error Format:
+{
+  "error": true,
+  "message": "Error description",
+  "timestamp": 1642234567890
+}
+
+Common HTTP Status Codes:
+- 200: Success
+- 400: Bad Request (invalid data)
+- 401: Unauthorized (authentication required)
+- 403: Forbidden (access denied)
+- 404: Not Found (resource not found)
+- 500: Internal Server Error
+
+================================================================================
+                            AUTHENTICATION SETUP
+================================================================================
+
+JWT Token Usage:
+- Header: Authorization: Bearer {your-jwt-token}
+- Access Token Expires: 15 minutes
+- Refresh Token Expires: 7 days
+- OTP Expires: 15 minutes
+
+Getting Started:
+1. Register: POST /api/auth/register
+2. Verify Email: POST /api/auth/verify (use OTP from console/email)
+3. Login: POST /api/auth/login (get JWT tokens)
+4. Use Bearer token in Authorization header for protected endpoints
+
+Test User (Auto-created):
+- Email: test@dealharbor.com
+- Password: password123
+
+================================================================================
+                               ENUMS REFERENCE
+================================================================================
+
+UserRole: USER, ADMIN
+
+SellerBadge: NEW_SELLER, ACTIVE_SELLER, TRUSTED_SELLER, DEALHARBOR_CHOICE, 
+            PREMIUM_SELLER, LEGENDARY_SELLER
+
+ProductCondition: NEW, LIKE_NEW, GOOD, FAIR, POOR, USED
+
+ProductStatus: PENDING, APPROVED, REJECTED, SOLD, DELETED
+
+OrderStatus: PENDING, CONFIRMED, COMPLETED, CANCELLED, DISPUTED
+
+DeliveryMethod: PICKUP, DELIVERY, SHIPPING
+
+MessageType: TEXT, IMAGE, FILE, SYSTEM, ORDER_UPDATE
+
+NotificationType: ORDER_CREATED, ORDER_CONFIRMED, ORDER_COMPLETED, 
+                 ORDER_CANCELLED, PRODUCT_APPROVED, PRODUCT_REJECTED, 
+                 PRODUCT_SOLD, NEW_MESSAGE, NEW_REVIEW, PRICE_DROP, 
+                 BACK_IN_STOCK, ACCOUNT_VERIFIED, SECURITY_ALERT, 
+                 SYSTEM_ANNOUNCEMENT
+
+ReviewType: SELLER_REVIEW, BUYER_REVIEW
+
+================================================================================
+                            QUICK TEST SEQUENCE
+================================================================================
+
+# 1. Health Check
+curl http://localhost:8080/
+
+# 2. Register User
+curl -X POST http://localhost:8080/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+
+# 3. Verify Email (use OTP from console)
+curl -X POST http://localhost:8080/api/auth/verify \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","otp":"123456"}'
+
+# 4. Login (save the JWT token)
+curl -X POST http://localhost:8080/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com","password":"password123"}'
+
+# 5. Get Profile (use JWT token from step 4)
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://localhost:8080/api/auth/me
+
+# 6. Browse Products
+curl http://localhost:8080/api/products
+
+# 7. Get Categories
+curl http://localhost:8080/api/categories
+
+================================================================================
+                                  NOTES
+================================================================================
+
+1. Replace YOUR_JWT_TOKEN with actual token from login response
+2. Replace YOUR_REFRESH_TOKEN with actual refresh token
+3. All timestamps are in ISO 8601 format (UTC)
+4. All prices are in INR (Indian Rupees)
+5. File uploads support PNG, JPG, JPEG formats
+6. Student verification only works with VIT email domains
+7. Products require admin approval before going live
+8. Seller badges are automatically calculated based on performance
+
+================================================================================
+                               END OF GUIDE
+================================================================================

@@ -1,4 +1,6 @@
-
+.\mvnw spring-boot:run
+docker run -d --name redis-local -p 6379:6379 redis:latest
+http://localhost:8080/admin.html
 # DealHarbor Backend Application
  * 
  * An intra-university e-commerce platform built with Spring Boot 3.x and PostgreSQL (Supabase).
@@ -2254,3 +2256,609 @@ echo "curl -X POST $BASE_URL/api/student-verification/send-otp -H 'Authorization
       ]
     },
 ```
+
+
+### ** New Features Added:**
+
+1. **💖 Favorites/Wishlist System**
+2. **⭐ Reviews & Ratings (Products + Users)**
+3. **💬 Messaging System**
+4. **🔔 Notification System**
+5. **📦 Enhanced Order Management**
+
+
+---
+
+## 📚 **API Endpoints Documentation**
+
+### **💖 Favorites Endpoints**
+
+#### **1. Add Product to Favorites**
+
+```plaintext
+POST /api/favorites/{productId}
+Authorization: Bearer {token}
+```
+
+**Example:**
+
+```shellscript
+curl -X POST http://localhost:8080/api/favorites/product-123 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Response:**
+
+```json
+"Product added to favorites"
+```
+
+#### **2. Remove from Favorites**
+
+```plaintext
+DELETE /api/favorites/{productId}
+Authorization: Bearer {token}
+```
+
+#### **3. Get User's Favorites**
+
+```plaintext
+GET /api/favorites?page=0&size=20
+Authorization: Bearer {token}
+```
+
+**Response:**
+
+```json
+{
+  "content": [
+    {
+      "id": "fav-123",
+      "productId": "product-123",
+      "productTitle": "MacBook Pro 2021",
+      "productImageUrl": "/api/images/products/macbook1.jpg",
+      "productPrice": "85000.00",
+      "productStatus": "APPROVED",
+      "sellerId": "seller-123",
+      "sellerName": "John Seller",
+      "createdAt": "2024-01-15T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 5,
+  "totalPages": 1
+}
+```
+
+#### **4. Check if Product is in Favorites**
+
+```plaintext
+GET /api/favorites/check/{productId}
+Authorization: Bearer {token}
+```
+
+**Response:**
+
+```json
+true
+```
+
+---
+
+### **⭐ Review Endpoints**
+
+#### **1. Create Product Review**
+
+```plaintext
+POST /api/reviews/products
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "productId": "product-123",
+  "orderId": "order-456",
+  "rating": 4.5,
+  "comment": "Great product, exactly as described!"
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "review-123",
+  "reviewerId": "user-123",
+  "reviewerName": "John Doe",
+  "reviewerProfilePhoto": "/api/images/default-avatar.png",
+  "reviewerIsVerifiedStudent": true,
+  "rating": 4.5,
+  "comment": "Great product, exactly as described!",
+  "isVerifiedPurchase": true,
+  "isHelpful": false,
+  "helpfulCount": 0,
+  "createdAt": "2024-01-15T10:00:00Z"
+}
+```
+
+#### **2. Get Product Reviews**
+
+```plaintext
+GET /api/reviews/products/{productId}?page=0&size=10
+```
+
+#### **3. Create User Review (Seller/Buyer)**
+
+```plaintext
+POST /api/reviews/users
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "orderId": "order-123",
+  "revieweeId": "seller-123",
+  "reviewType": "SELLER_REVIEW",
+  "rating": 4.8,
+  "comment": "Excellent seller, very responsive!",
+  "communicationRating": 5.0,
+  "reliabilityRating": 4.5,
+  "speedRating": 4.8
+}
+```
+
+#### **4. Get User Reviews**
+
+```plaintext
+GET /api/reviews/users/{userId}?reviewType=SELLER_REVIEW&page=0&size=10
+```
+
+---
+
+### **💬 Messaging Endpoints**
+
+#### **1. Start Conversation**
+
+```plaintext
+POST /api/messages/conversations?otherUserId=user-123&productId=product-456
+Authorization: Bearer {token}
+```
+
+**Response:**
+
+```json
+{
+  "id": "conv-123",
+  "otherUserId": "user-123",
+  "otherUserName": "Jane Seller",
+  "otherUserProfilePhoto": "/api/images/default-avatar.png",
+  "productId": "product-456",
+  "productTitle": "iPhone 13 Pro",
+  "productImageUrl": "/api/images/products/iphone1.jpg",
+  "orderId": null,
+  "lastMessage": "",
+  "lastMessageAt": "2024-01-15T10:00:00Z",
+  "unreadCount": 0,
+  "isActive": true
+}
+```
+
+#### **2. Send Message**
+
+```plaintext
+POST /api/messages/conversations/{conversationId}/messages
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "content": "Hi! Is this product still available?",
+  "messageType": "TEXT",
+  "attachmentUrl": null
+}
+```
+
+#### **3. Get Conversations**
+
+```plaintext
+GET /api/messages/conversations?page=0&size=20
+Authorization: Bearer {token}
+```
+
+#### **4. Get Conversation Messages**
+
+```plaintext
+GET /api/messages/conversations/{conversationId}/messages?page=0&size=50
+Authorization: Bearer {token}
+```
+
+#### **5. Mark Conversation as Read**
+
+```plaintext
+PUT /api/messages/conversations/{conversationId}/read
+Authorization: Bearer {token}
+```
+
+#### **6. Get Unread Message Count**
+
+```plaintext
+GET /api/messages/unread-count
+Authorization: Bearer {token}
+```
+
+**Response:**
+
+```json
+3
+```
+
+---
+
+### **🔔 Notification Endpoints**
+
+#### **1. Get User Notifications**
+
+```plaintext
+GET /api/notifications?page=0&size=20&unreadOnly=false
+Authorization: Bearer {token}
+```
+
+**Response:**
+
+```json
+{
+  "content": [
+    {
+      "id": "notif-123",
+      "title": "New Order Received",
+      "message": "John Doe wants to buy your product 'MacBook Pro 2021'",
+      "type": "ORDER_CREATED",
+      "actionUrl": "/orders/order-123",
+      "relatedEntityId": "order-123",
+      "relatedEntityType": "ORDER",
+      "isRead": false,
+      "createdAt": "2024-01-15T10:00:00Z",
+      "readAt": null
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 10
+}
+```
+
+#### **2. Get Unread Notification Count**
+
+```plaintext
+GET /api/notifications/unread-count
+Authorization: Bearer {token}
+```
+
+#### **3. Mark Notification as Read**
+
+```plaintext
+PUT /api/notifications/{notificationId}/read
+Authorization: Bearer {token}
+```
+
+#### **4. Mark All Notifications as Read**
+
+```plaintext
+PUT /api/notifications/mark-all-read
+Authorization: Bearer {token}
+```
+
+---
+
+### **📦 Enhanced Order Endpoints**
+
+#### **1. Create Order**
+
+```plaintext
+POST /api/orders
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "productId": "product-123",
+  "agreedPrice": 80000.00,
+  "buyerNotes": "Can we meet at the main campus?",
+  "pickupLocation": "VIT Main Campus",
+  "deliveryMethod": "PICKUP"
+}
+```
+
+#### **2. Update Order Status (Seller Only)**
+
+```plaintext
+PUT /api/orders/{orderId}
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "status": "CONFIRMED",
+  "sellerNotes": "Order confirmed! Let's meet tomorrow at 3 PM.",
+  "pickupLocation": "VIT Main Gate"
+}
+```
+
+#### **3. Get Buyer Orders**
+
+```plaintext
+GET /api/orders/buyer?status=PENDING&page=0&size=20
+Authorization: Bearer {token}
+```
+
+#### **4. Get Seller Orders**
+
+```plaintext
+GET /api/orders/seller?status=CONFIRMED&page=0&size=20
+Authorization: Bearer {token}
+```
+
+#### **5. Get Order Details**
+
+```plaintext
+GET /api/orders/{orderId}
+Authorization: Bearer {token}
+```
+
+#### **6. Cancel Order**
+
+```plaintext
+DELETE /api/orders/{orderId}
+Authorization: Bearer {token}
+```
+
+---
+
+## 🧪 **Complete Testing Examples**
+
+### **Test Complete User Flow:**
+
+```shellscript
+# 1. Login and get token
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@dealharbor.com","password":"password123"}' | \
+  jq -r '.accessToken')
+
+# 2. Add product to favorites
+curl -X POST http://localhost:8080/api/favorites/product-123 \
+  -H "Authorization: Bearer $TOKEN"
+
+# 3. Create an order
+curl -X POST http://localhost:8080/api/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productId": "product-123",
+    "agreedPrice": 75000.00,
+    "buyerNotes": "Interested in this product",
+    "pickupLocation": "VIT Campus",
+    "deliveryMethod": "PICKUP"
+  }'
+
+# 4. Start a conversation
+curl -X POST "http://localhost:8080/api/messages/conversations?otherUserId=seller-123&productId=product-123" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 5. Send a message
+curl -X POST http://localhost:8080/api/messages/conversations/conv-123/messages \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Hi! Is this product still available?",
+    "messageType": "TEXT"
+  }'
+
+# 6. Create a product review
+curl -X POST http://localhost:8080/api/reviews/products \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productId": "product-123",
+    "orderId": "order-456",
+    "rating": 4.5,
+    "comment": "Great product!"
+  }'
+
+# 7. Get notifications
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/notifications?page=0&size=10"
+```
+
+## **Admin Endpoints Available:**
+
+- `GET /api/admin/dashboard` - Admin dashboard with stats
+- `GET /api/admin/products` - All products (any status)
+- `PUT /api/admin/products/{id}` - Update any product
+- `GET /api/admin/users` - All users with filters
+- `PUT /api/admin/users/{id}` - Update any user
+- `GET /api/admin/products/search?keyword=` - Search products
+- `GET /api/admin/users/search?keyword=` - Search users
+
+# Current project structure
+
+src/main/java/com/dealharbor/dealharbor_backend/
+├── 📁 config/
+│   ├── GlobalExceptionHandler.java
+│   └── SecurityConfig.java
+│
+├── 📁 controllers/
+│   ├── AdminController.java              🆕 NEW - Admin management
+│   ├── AuthController.java
+│   ├── CategoryController.java
+│   ├── FavoriteController.java
+│   ├── ImageController.java
+│   ├── MessagingController.java
+│   ├── NotificationController.java
+│   ├── OrderController.java
+│   ├── ProductController.java
+│   ├── ReviewController.java
+│   ├── RootController.java
+│   ├── StudentVerificationController.java
+│   └── TestController.java
+│
+├── 📁 dto/
+│   ├── AccountStatsResponse.java
+│   ├── AdminDashboardResponse.java       🆕 NEW - Admin dashboard data
+│   ├── AdminProductActionRequest.java    🆕 NEW - Admin product actions
+│   ├── AdminUserActionRequest.java       🆕 NEW - Admin user actions
+│   ├── AdminVerifyStudentRequest.java
+│   ├── CategoryResponse.java
+│   ├── ChangeEmailRequest.java
+│   ├── ChangePasswordRequest.java
+│   ├── CheckEmailRequest.java
+│   ├── CheckEmailResponse.java
+│   ├── ConversationResponse.java
+│   ├── DeleteAccountRequest.java
+│   ├── FavoriteResponse.java
+│   ├── ForgotPasswordRequest.java
+│   ├── GitHubOAuth2UserInfo.java
+│   ├── GoogleOAuth2UserInfo.java
+│   ├── LoginRequest.java
+│   ├── LoginResponse.java
+│   ├── MessageRequest.java
+│   ├── MessageResponse.java
+│   ├── NotificationResponse.java
+│   ├── OAuth2UserInfo.java
+│   ├── OrderCreateRequest.java
+│   ├── OrderResponse.java
+│   ├── OrderUpdateRequest.java
+│   ├── OtpVerifyRequest.java
+│   ├── PagedResponse.java
+│   ├── ProductCreateRequest.java
+│   ├── ProductImageResponse.java
+│   ├── ProductResponse.java
+│   ├── ProductReviewRequest.java
+│   ├── ProductReviewResponse.java
+│   ├── ProductSearchRequest.java
+│   ├── ProductUpdateRequest.java
+│   ├── RegisterRequest.java
+│   ├── ResendOtpRequest.java
+│   ├── ResetPasswordRequest.java
+│   ├── SecurityEventResponse.java
+│   ├── StudentEmailOtpRequest.java
+│   ├── StudentEmailOtpVerifyRequest.java
+│   ├── StudentVerificationRequest.java
+│   ├── UpdateProfileRequest.java
+│   ├── UserProfileResponse.java
+│   ├── UserReviewRequest.java
+│   ├── UserReviewResponse.java
+│   └── UserSessionResponse.java
+│
+├── 📁 entities/
+│   ├── AdminAction.java
+│   ├── Category.java
+│   ├── Conversation.java
+│   ├── Favorite.java
+│   ├── LoginAttempt.java
+│   ├── Message.java
+│   ├── Notification.java
+│   ├── Order.java
+│   ├── OtpToken.java
+│   ├── Product.java
+│   ├── ProductImage.java
+│   ├── ProductReview.java
+│   ├── RefreshToken.java
+│   ├── SecurityEvent.java
+│   ├── StudentOtpToken.java
+│   ├── User.java
+│   ├── UserReview.java
+│   └── UserSession.java
+│
+├── 📁 enums/
+│   ├── AuthProvider.java
+│   ├── DeliveryMethod.java
+│   ├── MessageType.java
+│   ├── NotificationType.java
+│   ├── OrderStatus.java
+│   ├── ProductCondition.java
+│   ├── ProductStatus.java
+│   ├── ReviewType.java
+│   ├── Role.java
+│   ├── SellerBadge.java
+│   └── UserStatus.java
+│
+├── 📁 repositories/
+│   ├── AdminActionRepository.java
+│   ├── CategoryRepository.java
+│   ├── ConversationRepository.java
+│   ├── FavoriteRepository.java
+│   ├── LoginAttemptRepository.java
+│   ├── MessageRepository.java
+│   ├── NotificationRepository.java
+│   ├── OrderRepository.java            ✅ UPDATED - Admin queries
+│   ├── OtpTokenRepository.java
+│   ├── ProductImageRepository.java
+│   ├── ProductRepository.java          ✅ UPDATED - Admin queries
+│   ├── ProductReviewRepository.java    ✅ UPDATED - Admin queries
+│   ├── RefreshTokenRepository.java
+│   ├── SecurityEventRepository.java
+│   ├── StudentOtpTokenRepository.java
+│   ├── UserRepository.java             ✅ UPDATED - Admin queries
+│   ├── UserReviewRepository.java       ✅ UPDATED - Admin queries
+│   └── UserSessionRepository.java
+│
+├── 📁 security/
+│   ├── JwtAuthFilter.java
+│   ├── JwtTokenProvider.java
+│   ├── OAuth2AuthenticationSuccessHandler.java
+│   ├── OAuth2UserInfoFactory.java
+│   └── UserPrincipal.java
+│
+├── 📁 services/
+│   ├── AdminService.java               🆕 NEW - Admin business logic
+│   ├── AuthService.java
+│   ├── CategoryInitService.java        🆕 NEW - Initialize categories
+│   ├── CategoryService.java
+│   ├── CustomOAuth2UserService.java
+│   ├── DatabaseInitService.java
+│   ├── EmailService.java               ✅ UPDATED - Admin notifications
+│   ├── FavoriteService.java
+│   ├── MessagingService.java
+│   ├── NotificationService.java
+│   ├── OrderService.java
+│   ├── ProductService.java             ✅ UPDATED - Seller ID attachment
+│   ├── ReviewService.java
+│   ├── SecurityService.java
+│   ├── StudentVerificationService.java
+│   └── UserDetailsServiceImpl.java
+│
+└── DealharbourBackendApplication.java
+
+📁 src/main/resources/
+├── application.properties
+├── application-local.properties
+└── 📁 static/
+    └── default-avatar.png
+
+📁 database-migrations/
+├── database-complete-features-migration.sql
+├── database-complete-migration.sql
+├── database-final-migration.sql         🆕 NEW - Final schema
+├── database-migration.sql
+├── database-student-verification-migration.sql
+└── database-update-migration.sql
+
+📁 scripts/
+└── test-api-endpoints.sh

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, String> {
     
@@ -25,6 +27,16 @@ public interface ProductRepository extends JpaRepository<Product, String> {
            "LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "ORDER BY p.createdAt DESC")
     Page<Product> searchByKeyword(@Param("keyword") String keyword, @Param("status") ProductStatus status, Pageable pageable);
+    
+    // Admin search (all statuses)
+    @Query("SELECT p FROM Product p WHERE " +
+           "(LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(p.seller.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(p.seller.email) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "ORDER BY p.createdAt DESC")
+    Page<Product> searchByKeywordForAdmin(@Param("keyword") String keyword, Pageable pageable);
     
     // Filter queries
     @Query("SELECT p FROM Product p WHERE p.status = :status AND " +
@@ -52,7 +64,16 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     long countBySellerIdAndStatus(String sellerId, ProductStatus status);
     long countByStatus(ProductStatus status);
     long countByCategoryIdAndStatus(String categoryId, ProductStatus status);
+    long countByStatusAndIsFeaturedTrue(ProductStatus status);
+    long countByCreatedAtAfter(Instant since);
     
     @Query("SELECT COUNT(p) FROM Product p WHERE p.seller.id = :sellerId")
     long countBySellerId(@Param("sellerId") String sellerId);
+    
+    // Admin specific queries
+    List<Product> findBySellerIdAndStatusNot(String sellerId, ProductStatus status);
+    
+    // Auto-deletion queries
+    List<Product> findByStatus(ProductStatus status);
+    List<Product> findByStatusAndCreatedAtBefore(ProductStatus status, Instant createdBefore);
 }

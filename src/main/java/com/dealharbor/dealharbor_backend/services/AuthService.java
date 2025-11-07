@@ -4,7 +4,6 @@ import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.entities.*;
 import com.dealharbor.dealharbor_backend.enums.UserRole;
 import com.dealharbor.dealharbor_backend.repositories.*;
-import com.dealharbor.dealharbor_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,11 +25,8 @@ public class AuthService {
     private final StudentVerificationService studentVerificationService;
     private final UserRepository userRepository;
     private final OtpTokenRepository otpTokenRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final UserSessionRepository userSessionRepository;
-    private final SecurityEventRepository securityEventRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
 
     @Transactional
@@ -110,76 +105,67 @@ public class AuthService {
         }
     }
 
-    public LoginResponse login(LoginRequest req) {
-        User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
-        
-        if (user.isDeleted()) {
-            throw new RuntimeException("Account has been deleted");
+    public Authentication login(LoginRequest req, jakarta.servlet.http.HttpServletRequest request) {
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
+
+        if (user == null || user.isDeleted()) {
+            // Record failed attempt with context
+            recordAttemptSafe(req.getEmail(), request, false);
+            throw new RuntimeException("REDIRECT_TO_SIGNUP");
         }
-        
+
         if (!user.isEnabled()) {
+            recordAttemptSafe(req.getEmail(), request, false);
             throw new RuntimeException("Account not verified. Please verify your email first.");
         }
-        
+
         if (user.isLocked() || securityService.isAccountLocked(req.getEmail())) {
+            recordAttemptSafe(req.getEmail(), request, false);
             throw new RuntimeException("Account is temporarily locked due to multiple failed login attempts");
         }
 
         try {
-            authenticationManager.authenticate(
+            Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
             );
-            
-            String accessToken = jwtTokenProvider.createAccessToken(user);
-            String refreshToken = createRefreshToken(user);
 
-            // Update last login
-            user.setLastLoginAt(Instant.now());
-            userRepository.save(user);
+            // Record successful login attempt and event
+            recordAttemptSafe(req.getEmail(), request, true);
+            securityService.recordSecurityEvent(
+                    user.getId(),
+                    "LOGIN",
+                    request != null ? request.getRemoteAddr() : "N/A",
+                    request != null ? request.getHeader("User-Agent") : "N/A",
+                    "Login via EMAIL_PASSWORD"
+            );
 
-            return new LoginResponse(accessToken, refreshToken);
+            return authentication;
         } catch (Exception e) {
+            recordAttemptSafe(req.getEmail(), request, false);
             throw new RuntimeException("Invalid credentials");
         }
     }
 
-    @Transactional
-    public LoginResponse refreshToken(String refreshToken) {
-        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
-        
-        if (token.getExpiresAt().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(token);
-            throw new RuntimeException("Refresh token expired");
+    private void recordAttemptSafe(String email, jakarta.servlet.http.HttpServletRequest request, boolean successful) {
+        try {
+            String ip = request != null ? request.getHeader("X-Forwarded-For") : null;
+            if (ip != null && !ip.isEmpty()) {
+                ip = ip.split(",")[0].trim();
+            } else {
+                ip = request != null ? request.getRemoteAddr() : "N/A";
+            }
+            String ua = request != null ? request.getHeader("User-Agent") : "N/A";
+            securityService.recordLoginAttempt(email, ip, ua, successful);
+        } catch (Exception ignored) {
         }
-
-        User user = userRepository.findById(token.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        if (user.isDeleted()) {
-            throw new RuntimeException("Account has been deleted");
-        }
-
-        String newAccessToken = jwtTokenProvider.createAccessToken(user);
-        String newRefreshToken = createRefreshToken(user);
-
-        refreshTokenRepository.delete(token);
-
-        return new LoginResponse(newAccessToken, newRefreshToken);
     }
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest req) {
-        User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
         
-        if (user.isDeleted()) {
-            throw new RuntimeException("Account has been deleted");
-        }
-        
-        if (!user.isEnabled()) {
-            throw new RuntimeException("Account not verified");
+        if (user == null || user.isDeleted() || !user.isEnabled()) {
+            throw new RuntimeException("Email not found or not verified");
         }
 
         String otp = generateOtp();
@@ -194,6 +180,8 @@ public class AuthService {
         
         emailService.sendForgotPasswordOtp(req.getEmail(), otp);
         System.out.println("Password Reset OTP (for dev only): " + otp);
+        
+        securityService.recordSecurityEvent(user.getId(), "PASSWORD_RESET_REQUESTED", "N/A", "N/A", "Password reset requested");
     }
 
     @Transactional
@@ -212,12 +200,16 @@ public class AuthService {
             throw new RuntimeException("Account has been deleted");
         }
 
+        // Check if new password is same as old password
+        if (passwordEncoder.matches(req.getNewPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("New password cannot be the same as your current password");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         
         otpTokenRepository.deleteByEmail(req.getEmail());
-        refreshTokenRepository.deleteByUserId(user.getId());
         
         securityService.recordSecurityEvent(user.getId(), "PASSWORD_RESET", "N/A", "N/A", "Password reset via OTP");
     }
@@ -228,6 +220,20 @@ public class AuthService {
             return new CheckEmailResponse(false, false);
         }
         return new CheckEmailResponse(true, user.isEnabled());
+    }
+
+    public EmailResetEligibilityResponse checkEmailForReset(CheckEmailRequest req) {
+        User user = userRepository.findByEmail(req.getEmail()).orElse(null);
+        
+        if (user == null || user.isDeleted()) {
+            return new EmailResetEligibilityResponse(false, false, false, "Email not found");
+        }
+        
+        if (!user.isEnabled()) {
+            return new EmailResetEligibilityResponse(true, false, false, "Email not verified");
+        }
+        
+        return new EmailResetEligibilityResponse(true, true, true, "Email eligible for password reset");
     }
 
     // Protected methods (authentication required)
@@ -272,21 +278,8 @@ public class AuthService {
     }
 
     @Transactional
-    public void logout(String refreshToken) {
-        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
-        refreshTokenRepository.delete(token);
-        
-        userSessionRepository.findByRefreshToken(refreshToken).ifPresent(session -> {
-            session.setActive(false);
-            userSessionRepository.save(session);
-        });
-    }
-
-    @Transactional
     public void logoutAll(Authentication authentication) {
         User user = getUserFromAuthentication(authentication);
-        refreshTokenRepository.deleteByUserId(user.getId());
         userSessionRepository.deactivateAllUserSessions(user.getId());
         
         securityService.recordSecurityEvent(user.getId(), "LOGOUT_ALL", "N/A", "N/A", "Logged out from all devices");
@@ -304,7 +297,6 @@ public class AuthService {
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         
-        refreshTokenRepository.deleteByUserId(user.getId());
         userSessionRepository.deactivateAllUserSessions(user.getId());
         
         securityService.recordSecurityEvent(user.getId(), "PASSWORD_CHANGE", "N/A", "N/A", "Password changed successfully");
@@ -499,7 +491,6 @@ public class AuthService {
         
         otpTokenRepository.deleteByEmail(req.getEmail());
         
-        refreshTokenRepository.deleteByUserId(user.getId());
         userSessionRepository.deactivateAllUserSessions(user.getId());
         
         securityService.recordSecurityEvent(user.getId(), "EMAIL_CHANGED", "N/A", "N/A", "Email changed from " + oldEmail + " to " + req.getEmail());
@@ -519,7 +510,6 @@ public class AuthService {
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         
-        refreshTokenRepository.deleteByUserId(user.getId());
         userSessionRepository.deactivateAllUserSessions(user.getId());
         otpTokenRepository.deleteByEmail(user.getEmail());
         
@@ -550,20 +540,6 @@ public class AuthService {
         
         emailService.sendOtpEmail(email, otp);
         System.out.println("OTP (for dev only): " + otp);
-    }
-
-    private String createRefreshToken(User user) {
-        refreshTokenRepository.deleteByUserId(user.getId());
-        
-        String tokenValue = UUID.randomUUID().toString();
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(tokenValue)
-                .userId(user.getId())
-                .expiresAt(Instant.now().plusSeconds(7 * 24 * 60 * 60)) // 7 days
-                .build();
-        refreshTokenRepository.save(refreshToken);
-        
-        return tokenValue;
     }
 
     private String generateOtp() {

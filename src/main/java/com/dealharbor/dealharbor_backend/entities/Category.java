@@ -13,7 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 public class Category {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    // REMOVED: @GeneratedValue(strategy = GenerationType.UUID) - This was causing the issue!
     private String id;
 
     @Column(nullable = false, unique = true, length = 100)
@@ -42,14 +42,20 @@ public class Category {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    // Relationships
+    // Temporarily remove or modify the relationship to avoid complex queries during initialization
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ToString.Exclude // Prevent infinite recursion in toString
+    @EqualsAndHashCode.Exclude // Prevent issues with equals/hashCode
     private List<Product> products;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = Instant.now();
-        updatedAt = Instant.now();
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = Instant.now();
+        }
     }
 
     @PreUpdate

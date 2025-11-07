@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,4 +30,6 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     // Statistics
     long countBySellerIdAndStatus(String sellerId, OrderStatus status);
     long countByBuyerIdAndStatus(String buyerId, OrderStatus status);
+    long countByStatus(OrderStatus status);
+    long countByCreatedAtAfter(Instant since);
 }

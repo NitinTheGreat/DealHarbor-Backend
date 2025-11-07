@@ -5,34 +5,41 @@ import com.dealharbor.dealharbor_backend.entities.*;
 import com.dealharbor.dealharbor_backend.enums.ProductStatus;
 import com.dealharbor.dealharbor_backend.repositories.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProductService {
     
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductImageRepository productImageRepository;
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
         User seller = getUserFromAuthentication(authentication);
         
+        // Find category or default to "others" if not found
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElse(categoryRepository.findById("others")
+                        .orElseThrow(() -> new RuntimeException("Default 'others' category not found. Please run category initialization.")));
 
         Product product = Product.builder()
                 .title(request.getTitle())
@@ -44,11 +51,11 @@ public class ProductService {
                 .brand(request.getBrand())
                 .model(request.getModel())
                 .category(category)
-                .seller(seller)
+                .seller(seller) // ✅ SELLER ID IS PROPERLY ATTACHED HERE
                 .tags(request.getTags() != null ? String.join(",", request.getTags()) : null)
                 .pickupLocation(request.getPickupLocation())
                 .deliveryAvailable(request.isDeliveryAvailable())
-                .status(ProductStatus.PENDING)
+                .status(ProductStatus.PENDING) // All products start as PENDING for admin approval
                 .viewCount(0)
                 .favoriteCount(0)
                 .isFeatured(false)
@@ -84,6 +91,7 @@ public class ProductService {
         Sort sort = createSort(sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         
+        // ✅ ONLY SHOW APPROVED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByStatusOrderByCreatedAtDesc(
                 ProductStatus.APPROVED, pageable);
         
@@ -94,6 +102,7 @@ public class ProductService {
         Sort sort = createSort(sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         
+        // ✅ ONLY SHOW APPROVED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByCategoryIdAndStatusOrderByCreatedAtDesc(
                 categoryId, ProductStatus.APPROVED, pageable);
         
@@ -111,9 +120,11 @@ public class ProductService {
         Page<Product> productPage;
         
         if (request.getKeyword() != null && !request.getKeyword().trim().isEmpty()) {
+            // ✅ ONLY SEARCH APPROVED PRODUCTS (NOT SOLD ONES)
             productPage = productRepository.searchByKeyword(
                     request.getKeyword().trim(), ProductStatus.APPROVED, pageable);
         } else {
+            // ✅ ONLY FILTER APPROVED PRODUCTS (NOT SOLD ONES)
             productPage = productRepository.findWithFilters(
                     ProductStatus.APPROVED,
                     request.getCategoryId(),
@@ -148,6 +159,7 @@ public class ProductService {
 
     public PagedResponse<ProductResponse> getFeaturedProducts(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        // ✅ ONLY SHOW APPROVED AND FEATURED PRODUCTS (NOT SOLD ONES)
         Page<Product> productPage = productRepository.findByStatusAndIsFeaturedTrueOrderByCreatedAtDesc(
                 ProductStatus.APPROVED, pageable);
         
@@ -158,13 +170,16 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
-        if (product.getStatus() != ProductStatus.APPROVED) {
+        // ✅ ALLOW VIEWING SOLD PRODUCTS BUT SHOW STATUS
+        if (product.getStatus() != ProductStatus.APPROVED && product.getStatus() != ProductStatus.SOLD) {
             throw new RuntimeException("Product not available");
         }
         
-        // Increment view count
-        product.setViewCount(product.getViewCount() + 1);
-        productRepository.save(product);
+        // Increment view count only for approved products
+        if (product.getStatus() == ProductStatus.APPROVED) {
+            product.setViewCount(product.getViewCount() + 1);
+            productRepository.save(product);
+        }
         
         return convertToProductResponse(product);
     }
@@ -173,6 +188,7 @@ public class ProductService {
         User user = getUserFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         
+        // ✅ SHOW ALL USER'S PRODUCTS (INCLUDING SOLD ONES)
         Page<Product> productPage = productRepository.findBySellerIdOrderByCreatedAtDesc(
                 user.getId(), pageable);
         
@@ -207,7 +223,8 @@ public class ProductService {
         
         if (request.getCategoryId() != null) {
             Category category = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
+                    .orElse(categoryRepository.findById("others")
+                            .orElseThrow(() -> new RuntimeException("Default 'others' category not found")));
             product.setCategory(category);
         }
         
@@ -251,14 +268,103 @@ public class ProductService {
             throw new RuntimeException("Cannot delete sold products");
         }
         
-        product.setStatus(ProductStatus.DELETED);
-        product.setUpdatedAt(Instant.now());
-        productRepository.save(product);
+        // Delete all product images from S3 and database
+        deleteProductImages(product);
+        
+        // Hard delete the product from database
+        productRepository.delete(product);
         
         // Update seller stats
         User seller = product.getSeller();
         seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
         userRepository.save(seller);
+        
+        log.info("Product {} deleted by user {}", productId, user.getEmail());
+    }
+    
+    /**
+     * Scheduled task to automatically delete rejected products and products pending for more than 14 days
+     * Runs daily at 2 AM
+     */
+    @Scheduled(cron = "0 0 2 * * *")
+    @Transactional
+    public void autoDeleteExpiredProducts() {
+        log.info("Starting automatic cleanup of expired products...");
+        
+        Instant fourteenDaysAgo = Instant.now().minus(14, ChronoUnit.DAYS);
+        
+        // Find all rejected products
+        List<Product> rejectedProducts = productRepository.findByStatus(ProductStatus.REJECTED);
+        
+        // Find all pending products older than 14 days
+        List<Product> oldPendingProducts = productRepository.findByStatusAndCreatedAtBefore(
+                ProductStatus.PENDING, fourteenDaysAgo);
+        
+        int deletedCount = 0;
+        
+        // Delete rejected products
+        for (Product product : rejectedProducts) {
+            try {
+                deleteProductImages(product);
+                productRepository.delete(product);
+                
+                // Update seller stats
+                User seller = product.getSeller();
+                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
+                userRepository.save(seller);
+                
+                deletedCount++;
+                log.info("Auto-deleted rejected product: {} ({})", product.getId(), product.getTitle());
+            } catch (Exception e) {
+                log.error("Failed to delete rejected product {}: {}", product.getId(), e.getMessage());
+            }
+        }
+        
+        // Delete old pending products
+        for (Product product : oldPendingProducts) {
+            try {
+                deleteProductImages(product);
+                productRepository.delete(product);
+                
+                // Update seller stats
+                User seller = product.getSeller();
+                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
+                userRepository.save(seller);
+                
+                deletedCount++;
+                log.info("Auto-deleted old pending product: {} ({}) - Created: {}", 
+                        product.getId(), product.getTitle(), product.getCreatedAt());
+            } catch (Exception e) {
+                log.error("Failed to delete old pending product {}: {}", product.getId(), e.getMessage());
+            }
+        }
+        
+        log.info("Automatic cleanup completed. Deleted {} products.", deletedCount);
+    }
+    
+    /**
+     * Helper method to delete all images associated with a product
+     */
+    private void deleteProductImages(Product product) {
+        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
+        
+        for (ProductImage image : images) {
+            try {
+                // Delete from S3
+                boolean deleted = storageService.deleteFile(image.getImageUrl());
+                if (deleted) {
+                    log.debug("Deleted image from S3: {}", image.getImageUrl());
+                } else {
+                    log.warn("Failed to delete image from S3: {}", image.getImageUrl());
+                }
+            } catch (Exception e) {
+                log.error("Error deleting image from S3: {}", image.getImageUrl(), e);
+            }
+        }
+        
+        // Delete all image records from database
+        productImageRepository.deleteByProductId(product.getId());
+        log.debug("Deleted {} image records from database for product {}", images.size(), product.getId());
     }
 
     // Helper methods
@@ -333,11 +439,11 @@ public class ProductService {
                 tags,
                 product.getCreatedAt(),
                 product.getUpdatedAt(),
-                product.getSeller().getId(),
+                product.getSeller().getId(), // ✅ SELLER ID IS INCLUDED
                 product.getSeller().getName(),
                 product.getSeller().getSellerBadge().name(),
                 product.getSeller().getSellerRating(),
-                product.getSeller().isVerifiedStudent(), // Include verified student status
+                product.getSeller().isVerifiedStudent(),
                 product.getCategory().getId(),
                 product.getCategory().getName(),
                 images,

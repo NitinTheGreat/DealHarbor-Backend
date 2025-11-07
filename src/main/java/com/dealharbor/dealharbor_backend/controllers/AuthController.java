@@ -2,21 +2,34 @@ package com.dealharbor.dealharbor_backend.controllers;
 
 import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.services.AuthService;
-import com.dealharbor.dealharbor_backend.services.SecurityService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+// Allow known frontend origins and credentials so session cookies can be set/read
+@CrossOrigin(
+    origins = {"http://localhost:3000", "http://127.0.0.1:3000"},
+    allowCredentials = "true"
+)
 public class AuthController {
     private final AuthService authService;
-    private final SecurityService securityService;
+    private final SecurityContextRepository securityContextRepository;
 
     // Public endpoints (no authentication required)
     
@@ -39,13 +52,30 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
-        return ResponseEntity.ok(authService.login(req));
-    }
+    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest req,
+                                   HttpServletRequest request,
+                                   HttpServletResponse response) {
+        Authentication authentication = authService.login(req, request);
 
-    @PostMapping("/refresh")
-    public ResponseEntity<LoginResponse> refresh(@RequestParam String refreshToken) {
-        return ResponseEntity.ok(authService.refreshToken(refreshToken));
+        // Create a fresh SecurityContext and persist it via the configured repository
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+
+        // Ensure an HTTP session exists before changing session id (required when app is stateless by default)
+        // This will back the session by Redis due to @EnableRedisHttpSession
+        request.getSession(true);
+
+        // Regenerate session id to prevent fixation and save context to session/Redis
+        request.changeSessionId();
+        securityContextRepository.saveContext(context, request, response);
+
+        // Return JSON payload with message and user profile so clients reliably parse the response
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("message", "Logged in successfully");
+        payload.put("user", authService.getCurrentUser(authentication));
+
+        return ResponseEntity.ok(payload);
     }
 
     @PostMapping("/forgot-password")
@@ -65,6 +95,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.checkEmail(req));
     }
 
+    @PostMapping("/check-email-for-reset")
+    public ResponseEntity<EmailResetEligibilityResponse> checkEmailForReset(@RequestBody CheckEmailRequest req) {
+        return ResponseEntity.ok(authService.checkEmailForReset(req));
+    }
+
     @GetMapping("/test")
     public ResponseEntity<?> test() {
         return ResponseEntity.ok("Auth endpoints are working!");
@@ -77,16 +112,68 @@ public class AuthController {
         return ResponseEntity.ok(authService.getCurrentUser(authentication));
     }
 
-    @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestParam String refreshToken) {
-        authService.logout(refreshToken);
-        return ResponseEntity.ok("Logged out successfully.");
+    @GetMapping("/session-info")
+    public ResponseEntity<Map<String, Object>> getSessionInfo(HttpSession session, Authentication authentication) {
+        Map<String, Object> data = new HashMap<>();
+        long now = System.currentTimeMillis();
+        long created = session.getCreationTime();
+        long last = session.getLastAccessedTime();
+        int maxInactive = session.getMaxInactiveInterval(); // seconds
+        long expiresAt = last + (maxInactive * 1000L);
+        long remaining = Math.max(0L, (expiresAt - now) / 1000L);
+
+        data.put("sessionId", session.getId());
+        data.put("creationTime", created);
+        data.put("lastAccessedTime", last);
+        data.put("maxInactiveIntervalSeconds", maxInactive);
+        data.put("now", now);
+        data.put("expiresAt", expiresAt);
+        data.put("secondsRemaining", remaining);
+        if (authentication != null) {
+            data.put("principalName", authentication.getName());
+            data.put("authenticated", authentication.isAuthenticated());
+        } else {
+            data.put("principalName", null);
+            data.put("authenticated", false);
+        }
+        return ResponseEntity.ok(data);
     }
 
-    @PostMapping("/logout-all")
-    public ResponseEntity<?> logoutAll(Authentication authentication) {
-        authService.logoutAll(authentication);
-        return ResponseEntity.ok("Logged out from all devices successfully.");
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(HttpSession session,
+                    HttpServletRequest request,
+                    HttpServletResponse response) {
+    // Invalidate server-side session (removes it from Redis via Spring Session)
+    session.invalidate();
+
+    // Clear SecurityContext just in case
+    SecurityContextHolder.clearContext();
+
+    // Instruct client to delete session cookies (Spring Session uses "SESSION").
+    boolean secure = request.isSecure();
+    ResponseCookie sessionCookie = ResponseCookie.from("SESSION", "")
+        .httpOnly(true)
+        .secure(secure)
+        .path("/")
+        .maxAge(0)
+        .sameSite("Lax")
+        .build();
+    // Also clear JSESSIONID if present in some containers/tools
+    ResponseCookie jsessionCookie = ResponseCookie.from("JSESSIONID", "")
+        .httpOnly(true)
+        .secure(secure)
+        .path("/")
+        .maxAge(0)
+        .sameSite("Lax")
+        .build();
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("message", "Logged out successfully");
+
+    return ResponseEntity.ok()
+        .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
+        .header(HttpHeaders.SET_COOKIE, jsessionCookie.toString())
+        .body(payload);
     }
 
     @PostMapping("/change-password")
