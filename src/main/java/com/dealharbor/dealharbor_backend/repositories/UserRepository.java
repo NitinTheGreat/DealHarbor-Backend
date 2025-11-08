@@ -29,6 +29,24 @@ public interface UserRepository extends JpaRepository<User, String> {
            "ORDER BY u.createdAt DESC")
     Page<User> searchByKeywordForAdmin(@Param("keyword") String keyword, Pageable pageable);
     
+    /**
+     * Search for sellers (users with products) by name
+     * Excludes current user from results
+     * Note: User entity has 'name' field (not firstName/lastName) and 'sellerRating' (not rating)
+     * Orders by sellerRating and totalListings to show most active sellers first
+     */
+    @Query("SELECT DISTINCT u FROM User u " +
+           "WHERE u.id != :currentUserId " +
+           "AND u.deleted = false " +
+           "AND u.enabled = true " +
+           "AND u.isBanned = false " +
+           "AND (LOWER(u.name) LIKE LOWER(CONCAT('%', :query, '%')) " +
+           "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))) " +
+           "ORDER BY u.sellerRating DESC, u.totalListings DESC, u.createdAt DESC")
+    Page<User> searchSellers(@Param("query") String query, 
+                             @Param("currentUserId") String currentUserId, 
+                             Pageable pageable);
+    
     // Statistics
     long countByDeletedFalseAndEnabledTrue();
     long countByIsBannedTrue();

@@ -60,4 +60,50 @@ public class MessagingController {
     public ResponseEntity<Long> getUnreadMessageCount(Authentication authentication) {
         return ResponseEntity.ok(messagingService.getUnreadMessageCount(authentication));
     }
+
+    /**
+     * Search for sellers by name (for initiating chat)
+     * Supports debouncing on frontend
+     */
+    @GetMapping("/sellers/search")
+    public ResponseEntity<PagedResponse<SellerSearchResponse>> searchSellers(
+            @RequestParam String query,
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(messagingService.searchSellers(query, authentication, page, size));
+    }
+
+    /**
+     * Get or create conversation with a specific seller
+     * This is called when clicking on seller from search or using ?sellerId query param
+     */
+    @GetMapping("/conversation-with-seller/{sellerId}")
+    public ResponseEntity<ConversationResponse> getOrCreateConversationWithSeller(
+            @PathVariable String sellerId,
+            @RequestParam(required = false) String productId,
+            Authentication authentication) {
+        return ResponseEntity.ok(messagingService.getOrCreateConversationWithSeller(sellerId, productId, authentication));
+    }
+
+    /**
+     * Get conversation details by ID
+     */
+    @GetMapping("/conversations/{conversationId}")
+    public ResponseEntity<ConversationResponse> getConversationById(
+            @PathVariable String conversationId,
+            Authentication authentication) {
+        return ResponseEntity.ok(messagingService.getConversationById(conversationId, authentication));
+    }
+
+    /**
+     * Delete/Archive conversation
+     */
+    @DeleteMapping("/conversations/{conversationId}")
+    public ResponseEntity<?> deleteConversation(
+            @PathVariable String conversationId,
+            Authentication authentication) {
+        messagingService.deleteConversation(conversationId, authentication);
+        return ResponseEntity.ok("Conversation deleted");
+    }
 }

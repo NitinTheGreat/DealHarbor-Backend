@@ -192,6 +192,150 @@ public class MessagingService {
         return conversationRepository.countUnreadMessages(user.getId());
     }
 
+    /**
+     * Search for sellers by name (debounce-friendly)
+     */
+    public PagedResponse<SellerSearchResponse> searchSellers(String query, Authentication authentication, int page, int size) {
+        User currentUser = getUserFromAuthentication(authentication);
+        Pageable pageable = PageRequest.of(page, size);
+        
+        // Search for users who are sellers (have products) and match the query
+        Page<User> sellersPage = userRepository.searchSellers(query.toLowerCase(), currentUser.getId(), pageable);
+        
+        List<SellerSearchResponse> content = sellersPage.getContent().stream()
+                .map(seller -> {
+                    // Check if conversation already exists
+                    Conversation existingConv = conversationRepository
+                            .findConversationBetweenUsers(currentUser.getId(), seller.getId())
+                            .orElse(null);
+                    
+                    // Split name into first and last (if possible)
+                    String fullName = seller.getName();
+                    String firstName = fullName;
+                    String lastName = "";
+                    if (fullName != null && fullName.contains(" ")) {
+                        String[] parts = fullName.split(" ", 2);
+                        firstName = parts[0];
+                        lastName = parts.length > 1 ? parts[1] : "";
+                    }
+                    
+                    return SellerSearchResponse.builder()
+                            .userId(seller.getId())
+                            .firstName(firstName)
+                            .lastName(lastName)
+                            .email(seller.getEmail())
+                            .profileImageUrl(seller.getProfilePhotoUrl())
+                            .isVerified(seller.isVerifiedStudent())
+                            .productCount(seller.getTotalListings())
+                            .averageRating(seller.getSellerRating() != null ? seller.getSellerRating().doubleValue() : 0.0)
+                            .totalReviews(seller.getPositiveReviews() + seller.getNegativeReviews())
+                            .lastActive(seller.getLastLoginAt())
+                            .isOnline(false) // Can be enhanced with Redis presence tracking
+                            .hasExistingConversation(existingConv != null)
+                            .existingConversationId(existingConv != null ? existingConv.getId() : null)
+                            .lastMessageTime(existingConv != null ? existingConv.getLastMessageAt() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
+        
+        return new PagedResponse<>(
+                content,
+                sellersPage.getNumber(),
+                sellersPage.getSize(),
+                sellersPage.getTotalElements(),
+                sellersPage.getTotalPages(),
+                sellersPage.isFirst(),
+                sellersPage.isLast(),
+                sellersPage.hasNext(),
+                sellersPage.hasPrevious()
+        );
+    }
+
+    /**
+     * Get or create conversation with a specific seller
+     */
+    @Transactional
+    public ConversationResponse getOrCreateConversationWithSeller(String sellerId, String productId, Authentication authentication) {
+        User currentUser = getUserFromAuthentication(authentication);
+        User seller = userRepository.findById(sellerId)
+                .orElseThrow(() -> new RuntimeException("Seller not found"));
+        
+        if (currentUser.getId().equals(sellerId)) {
+            throw new RuntimeException("Cannot create conversation with yourself");
+        }
+        
+        Product product = null;
+        if (productId != null) {
+            product = productRepository.findById(productId)
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+        }
+        
+        // Check if conversation already exists
+        Conversation existingConversation;
+        if (product != null) {
+            existingConversation = conversationRepository
+                    .findConversationBetweenUsersForProduct(currentUser.getId(), sellerId, productId)
+                    .orElse(null);
+        } else {
+            existingConversation = conversationRepository
+                    .findConversationBetweenUsers(currentUser.getId(), sellerId)
+                    .orElse(null);
+        }
+        
+        if (existingConversation != null) {
+            return convertToConversationResponse(existingConversation, currentUser.getId());
+        }
+        
+        // Create new conversation
+        Conversation conversation = Conversation.builder()
+                .user1(currentUser)
+                .user2(seller)
+                .product(product)
+                .isActive(true)
+                .build();
+        
+        conversation = conversationRepository.save(conversation);
+        
+        return convertToConversationResponse(conversation, currentUser.getId());
+    }
+
+    /**
+     * Get conversation by ID
+     */
+    public ConversationResponse getConversationById(String conversationId, Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+        
+        // Verify user is part of conversation
+        if (!conversation.getUser1().getId().equals(user.getId()) && 
+            !conversation.getUser2().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied to this conversation");
+        }
+        
+        return convertToConversationResponse(conversation, user.getId());
+    }
+
+    /**
+     * Delete/Archive conversation
+     */
+    @Transactional
+    public void deleteConversation(String conversationId, Authentication authentication) {
+        User user = getUserFromAuthentication(authentication);
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+        
+        // Verify user is part of conversation
+        if (!conversation.getUser1().getId().equals(user.getId()) && 
+            !conversation.getUser2().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied to this conversation");
+        }
+        
+        // Soft delete - mark as inactive
+        conversation.setIsActive(false);
+        conversationRepository.save(conversation);
+    }
+
     private ConversationResponse convertToConversationResponse(Conversation conversation, String currentUserId) {
         User otherUser = conversation.getUser1().getId().equals(currentUserId) 
                 ? conversation.getUser2() 

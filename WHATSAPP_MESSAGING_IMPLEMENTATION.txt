@@ -1,0 +1,763 @@
+═══════════════════════════════════════════════════════════════════════════════
+  WHATSAPP-LIKE MESSAGING IMPLEMENTATION GUIDE
+  Complete Backend & Frontend Integration with Seller Search
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 TABLE OF CONTENTS
+  1. Backend API Endpoints
+  2. WebSocket Integration
+  3. Frontend Architecture
+  4. Page: /messages (Main Chat Interface)
+  5. Page: /messages?sellerId={id} (Direct Chat)
+  6. Seller Search with Debouncing
+  7. Conversation List (Left Sidebar)
+  8. Chat Window (Right Panel)
+  9. Real-time Features
+  10. Complete Code Examples
+
+═══════════════════════════════════════════════════════════════════════════════
+1. BACKEND API ENDPOINTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Base URL: http://localhost:8080/api/messages
+
+✅ GET /sellers/search?query={name}&page=0&size=10
+   → Search sellers by name (supports debouncing)
+   → Returns: PagedResponse<SellerSearchResponse>
+   → Headers: Authorization: Bearer {token}
+
+✅ GET /conversation-with-seller/{sellerId}?productId={id}
+   → Get or create conversation with specific seller
+   → Returns: ConversationResponse
+   → Used when: ?sellerId query param or clicking search result
+
+✅ GET /conversations?page=0&size=20
+   → Get all user conversations (for left sidebar)
+   → Returns: PagedResponse<ConversationResponse>
+   → Sorted by: lastMessageAt DESC
+
+✅ GET /conversations/{conversationId}
+   → Get specific conversation details
+   → Returns: ConversationResponse
+
+✅ GET /conversations/{conversationId}/messages?page=0&size=50
+   → Get messages for a conversation
+   → Returns: PagedResponse<MessageResponse>
+   → Sorted by: createdAt ASC (oldest first)
+
+✅ POST /conversations/{conversationId}/messages
+   → Send a message
+   → Body: { "content": "Hello!", "messageType": "TEXT" }
+   → Returns: MessageResponse
+
+✅ PUT /conversations/{conversationId}/read
+   → Mark all messages in conversation as read
+   → Returns: Success message
+
+✅ GET /unread-count
+   → Get total unread message count
+   → Returns: Long (number)
+
+✅ DELETE /conversations/{conversationId}
+   → Delete/archive conversation
+   → Returns: Success message
+
+═══════════════════════════════════════════════════════════════════════════════
+2. WEBSOCKET INTEGRATION
+═══════════════════════════════════════════════════════════════════════════════
+
+WebSocket URL: ws://localhost:8080/ws
+Protocol: STOMP over SockJS
+
+SUBSCRIBE TO:
+  /user/{userId}/queue/messages        → Receive new messages
+  /user/{userId}/queue/typing          → Receive typing indicators
+  /user/{userId}/queue/presence        → Receive online/offline status
+
+SEND TO:
+  /app/chat.send                       → Send message
+  /app/chat.typing/{conversationId}    → Send typing indicator
+  /app/chat.read                       → Mark messages as read
+  /app/user.presence                   → Update online status
+
+═══════════════════════════════════════════════════════════════════════════════
+3. FRONTEND ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+File Structure:
+  app/
+    messages/
+      page.tsx                    → Main messages page
+      layout.tsx                  → Messages layout wrapper
+    api/
+      messages/
+        conversations/route.ts    → Proxy for conversations API
+        search/route.ts           → Proxy for seller search API
+        send/route.ts             → Proxy for send message API
+  components/
+    messaging/
+      ConversationList.tsx        → Left sidebar (conversation list)
+      ChatWindow.tsx              → Right panel (active chat)
+      MessageBubble.tsx           → Individual message component
+      ChatInput.tsx               → Message input with emoji/attachment
+      SellerSearch.tsx            → Seller search with debouncing
+      TypingIndicator.tsx         → "User is typing..." indicator
+      OnlineStatus.tsx            → Green dot for online users
+  lib/
+    websocket/
+      WebSocketClient.ts          → WebSocket connection manager
+      chatStore.ts                → Zustand store for chat state
+      hooks.ts                    → useWebSocket, useChat hooks
+
+═══════════════════════════════════════════════════════════════════════════════
+4. PAGE: /messages (Main Chat Interface)
+═══════════════════════════════════════════════════════════════════════════════
+
+app/messages/page.tsx:
+
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import ConversationList from '@/components/messaging/ConversationList';
+import ChatWindow from '@/components/messaging/ChatWindow';
+import SellerSearch from '@/components/messaging/SellerSearch';
+import { useWebSocket } from '@/lib/websocket/hooks';
+
+export default function MessagesPage() {
+  const searchParams = useSearchParams();
+  const sellerId = searchParams.get('sellerId');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  
+  const { connected, connect, disconnect } = useWebSocket();
+
+  useEffect(() => {
+    // Connect to WebSocket on mount
+    connect();
+    return () => disconnect();
+  }, []);
+
+  useEffect(() => {
+    // If sellerId query param exists, open/create conversation
+    if (sellerId) {
+      handleOpenSellerChat(sellerId);
+    }
+  }, [sellerId]);
+
+  const handleOpenSellerChat = async (sellerId: string) => {
+    try {
+      const res = await fetch(`/api/messages/conversation-with-seller/${sellerId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const conversation = await res.json();
+      setActiveConversationId(conversation.id);
+    } catch (error) {
+      console.error('Failed to open chat:', error);
+    }
+  };
+
+  return (
+    <div className="flex h-screen">
+      {/* Left Sidebar - Conversations */}
+      <div className="w-1/3 border-r border-gray-200 flex flex-col">
+        {/* Search Header */}
+        <div className="p-4 border-b border-gray-200">
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className="w-full px-4 py-2 bg-green-500 text-white rounded-lg"
+          >
+            + New Chat
+          </button>
+        </div>
+
+        {/* Seller Search */}
+        {showSearch && (
+          <SellerSearch
+            onSelectSeller={(seller) => {
+              if (seller.hasExistingConversation) {
+                setActiveConversationId(seller.existingConversationId!);
+              } else {
+                handleOpenSellerChat(seller.userId);
+              }
+              setShowSearch(false);
+            }}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+
+        {/* Conversation List */}
+        <ConversationList
+          activeConversationId={activeConversationId}
+          onSelectConversation={setActiveConversationId}
+        />
+      </div>
+
+      {/* Right Panel - Chat Window */}
+      <div className="flex-1">
+        {activeConversationId ? (
+          <ChatWindow conversationId={activeConversationId} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="text-center">
+              <p className="text-xl">Select a conversation or start a new chat</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+5. PAGE: /messages?sellerId={id} (Direct Chat with Seller)
+═══════════════════════════════════════════════════════════════════════════════
+
+When user navigates to: /messages?sellerId=e49b2831-f27b-4a08-91cb-e0c89ebca8a3
+
+The page will:
+1. Detect sellerId from query params
+2. Call GET /api/messages/conversation-with-seller/{sellerId}
+3. Backend creates conversation if doesn't exist
+4. Opens chat window automatically
+5. User can immediately send messages
+
+═══════════════════════════════════════════════════════════════════════════════
+6. SELLER SEARCH WITH DEBOUNCING
+═══════════════════════════════════════════════════════════════════════════════
+
+components/messaging/SellerSearch.tsx:
+
+import { useState, useEffect, useCallback } from 'react';
+import { debounce } from 'lodash';
+
+interface SellerSearchProps {
+  onSelectSeller: (seller: SellerSearchResponse) => void;
+  onClose: () => void;
+}
+
+export default function SellerSearch({ onSelectSeller, onClose }: SellerSearchProps) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SellerSearchResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Debounced search function (500ms delay)
+  const searchSellers = useCallback(
+    debounce(async (searchQuery: string) => {
+      if (searchQuery.trim().length < 2) {
+        setResults([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/messages/sellers/search?query=${encodeURIComponent(searchQuery)}&page=0&size=10`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        setResults(data.content);
+      } catch (error) {
+        console.error('Search failed:', error);
+      } finally {
+        setLoading(false);
+      }
+    }, 500),
+    []
+  );
+
+  useEffect(() => {
+    searchSellers(query);
+  }, [query, searchSellers]);
+
+  return (
+    <div className="absolute top-16 left-0 right-0 bg-white shadow-lg z-50 max-h-96 overflow-y-auto">
+      {/* Search Input */}
+      <div className="p-4 border-b">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search sellers by name..."
+          className="w-full px-4 py-2 border rounded-lg"
+          autoFocus
+        />
+      </div>
+
+      {/* Results */}
+      <div>
+        {loading && <div className="p-4 text-center">Searching...</div>}
+        
+        {!loading && results.length === 0 && query.length >= 2 && (
+          <div className="p-4 text-center text-gray-500">No sellers found</div>
+        )}
+
+        {results.map((seller) => (
+          <div
+            key={seller.userId}
+            onClick={() => onSelectSeller(seller)}
+            className="p-4 hover:bg-gray-50 cursor-pointer border-b flex items-center gap-3"
+          >
+            {/* Profile Image */}
+            <img
+              src={seller.profileImageUrl || '/default-avatar.png'}
+              alt={seller.getFullName()}
+              className="w-12 h-12 rounded-full"
+            />
+
+            {/* Seller Info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">{seller.getFullName()}</span>
+                {seller.isVerified && (
+                  <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                    ✓ Verified
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-gray-500">
+                {seller.productCount} products · ⭐ {seller.averageRating?.toFixed(1) || 'N/A'}
+              </div>
+              {seller.hasExistingConversation && (
+                <div className="text-xs text-green-600 mt-1">
+                  💬 Existing conversation
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Close Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+7. CONVERSATION LIST (Left Sidebar)
+═══════════════════════════════════════════════════════════════════════════════
+
+components/messaging/ConversationList.tsx:
+
+import { useEffect, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import OnlineStatus from './OnlineStatus';
+
+interface ConversationListProps {
+  activeConversationId: string | null;
+  onSelectConversation: (conversationId: string) => void;
+}
+
+export default function ConversationList({ 
+  activeConversationId, 
+  onSelectConversation 
+}: ConversationListProps) {
+  const [conversations, setConversations] = useState<ConversationResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadConversations();
+    
+    // Refresh every 30 seconds to catch new conversations
+    const interval = setInterval(loadConversations, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadConversations = async () => {
+    try {
+      const res = await fetch('/api/messages/conversations?page=0&size=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setConversations(data.content);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-4 text-center">Loading conversations...</div>;
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        No conversations yet. Start a new chat!
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {conversations.map((conv) => (
+        <div
+          key={conv.id}
+          onClick={() => onSelectConversation(conv.id)}
+          className={`p-4 border-b hover:bg-gray-50 cursor-pointer ${
+            activeConversationId === conv.id ? 'bg-gray-100' : ''
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {/* Profile Image with Online Status */}
+            <div className="relative">
+              <img
+                src={conv.otherUserProfilePhotoUrl || '/default-avatar.png'}
+                alt={conv.otherUserName}
+                className="w-12 h-12 rounded-full"
+              />
+              <OnlineStatus userId={conv.otherUserId} />
+            </div>
+
+            {/* Conversation Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-start">
+                <span className="font-semibold truncate">{conv.otherUserName}</span>
+                <span className="text-xs text-gray-500">
+                  {conv.lastMessageAt 
+                    ? formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: true })
+                    : 'New'}
+                </span>
+              </div>
+
+              {/* Product Context (if exists) */}
+              {conv.productTitle && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                  {conv.productImageUrl && (
+                    <img
+                      src={conv.productImageUrl}
+                      alt={conv.productTitle}
+                      className="w-6 h-6 rounded object-cover"
+                    />
+                  )}
+                  <span className="truncate">{conv.productTitle}</span>
+                </div>
+              )}
+
+              {/* Last Message */}
+              <p className="text-sm text-gray-600 truncate mt-1">
+                {conv.lastMessage || 'No messages yet'}
+              </p>
+
+              {/* Unread Badge */}
+              {conv.unreadCount > 0 && (
+                <span className="inline-block mt-1 px-2 py-1 bg-green-500 text-white text-xs rounded-full">
+                  {conv.unreadCount}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+8. CHAT WINDOW (Right Panel)
+═══════════════════════════════════════════════════════════════════════════════
+
+components/messaging/ChatWindow.tsx:
+
+import { useEffect, useState, useRef } from 'react';
+import MessageBubble from './MessageBubble';
+import ChatInput from './ChatInput';
+import TypingIndicator from './TypingIndicator';
+import { useWebSocket } from '@/lib/websocket/hooks';
+
+interface ChatWindowProps {
+  conversationId: string;
+}
+
+export default function ChatWindow({ conversationId }: ChatWindowProps) {
+  const [conversation, setConversation] = useState<ConversationResponse | null>(null);
+  const [messages, setMessages] = useState<MessageResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { sendMessage, subscribeToMessages, sendTypingIndicator } = useWebSocket();
+
+  useEffect(() => {
+    loadConversation();
+    loadMessages();
+    markAsRead();
+
+    // Subscribe to new messages for this conversation
+    const unsubscribe = subscribeToMessages((newMessage) => {
+      if (newMessage.conversationId === conversationId) {
+        setMessages(prev => [...prev, newMessage]);
+        markAsRead();
+        scrollToBottom();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [conversationId]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const loadConversation = async () => {
+    try {
+      const res = await fetch(`/api/messages/conversations/${conversationId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setConversation(data);
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+    }
+  };
+
+  const loadMessages = async () => {
+    try {
+      const res = await fetch(
+        `/api/messages/conversations/${conversationId}/messages?page=0&size=100`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      setMessages(data.content);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markAsRead = async () => {
+    try {
+      await fetch(`/api/messages/conversations/${conversationId}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
+  };
+
+  const handleSendMessage = async (content: string) => {
+    try {
+      // Send via WebSocket for real-time delivery
+      sendMessage(conversationId, content);
+      
+      // Also send via REST API for persistence
+      const res = await fetch(`/api/messages/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content, messageType: 'TEXT' })
+      });
+      
+      const newMessage = await res.json();
+      setMessages(prev => [...prev, newMessage]);
+      scrollToBottom();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  };
+
+  const handleTyping = () => {
+    sendTypingIndicator(conversationId);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-full">Loading...</div>;
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Chat Header */}
+      <div className="p-4 border-b border-gray-200 flex items-center gap-3 bg-white">
+        <img
+          src={conversation?.otherUserProfilePhotoUrl || '/default-avatar.png'}
+          alt={conversation?.otherUserName}
+          className="w-10 h-10 rounded-full"
+        />
+        <div className="flex-1">
+          <h3 className="font-semibold">{conversation?.otherUserName}</h3>
+          {conversation?.productTitle && (
+            <p className="text-sm text-gray-500">About: {conversation.productTitle}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+        {messages.map((message) => (
+          <MessageBubble key={message.id} message={message} />
+        ))}
+        <TypingIndicator conversationId={conversationId} />
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <ChatInput
+        onSendMessage={handleSendMessage}
+        onTyping={handleTyping}
+      />
+    </div>
+  );
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+9. REAL-TIME FEATURES
+═══════════════════════════════════════════════════════════════════════════════
+
+WebSocket Client (lib/websocket/WebSocketClient.ts):
+
+import SockJS from 'sockjs-client';
+import { Client, IMessage } from '@stomp/stompjs';
+
+class WebSocketClient {
+  private client: Client | null = null;
+  private userId: string | null = null;
+
+  connect(userId: string, token: string) {
+    this.userId = userId;
+    
+    const socket = new SockJS('http://localhost:8080/ws');
+    this.client = new Client({
+      webSocketFactory: () => socket,
+      connectHeaders: {
+        'X-User-Id': userId,
+        'Authorization': `Bearer ${token}`
+      },
+      onConnect: () => {
+        console.log('✅ WebSocket Connected');
+        this.subscribeToChannels();
+      },
+      onStompError: (frame) => {
+        console.error('❌ WebSocket Error:', frame);
+      }
+    });
+
+    this.client.activate();
+  }
+
+  private subscribeToChannels() {
+    if (!this.client || !this.userId) return;
+
+    // Subscribe to personal message queue
+    this.client.subscribe(`/user/${this.userId}/queue/messages`, (message) => {
+      const data = JSON.parse(message.body);
+      window.dispatchEvent(new CustomEvent('websocket-message', { detail: data }));
+    });
+
+    // Subscribe to typing indicators
+    this.client.subscribe(`/user/${this.userId}/queue/typing`, (message) => {
+      const data = JSON.parse(message.body);
+      window.dispatchEvent(new CustomEvent('websocket-typing', { detail: data }));
+    });
+
+    // Subscribe to presence updates
+    this.client.subscribe(`/user/${this.userId}/queue/presence`, (message) => {
+      const data = JSON.parse(message.body);
+      window.dispatchEvent(new CustomEvent('websocket-presence', { detail: data }));
+    });
+  }
+
+  sendMessage(conversationId: string, content: string) {
+    if (!this.client) return;
+
+    this.client.publish({
+      destination: '/app/chat.send',
+      body: JSON.stringify({
+        conversationId,
+        content,
+        messageType: 'TEXT'
+      })
+    });
+  }
+
+  sendTypingIndicator(conversationId: string) {
+    if (!this.client) return;
+
+    this.client.publish({
+      destination: `/app/chat.typing/${conversationId}`,
+      body: JSON.stringify({ conversationId, isTyping: true })
+    });
+  }
+
+  markAsRead(conversationId: string, messageIds: string[]) {
+    if (!this.client) return;
+
+    this.client.publish({
+      destination: '/app/chat.read',
+      body: JSON.stringify({ conversationId, messageIds })
+    });
+  }
+
+  updatePresence(status: 'ONLINE' | 'OFFLINE') {
+    if (!this.client || !this.userId) return;
+
+    this.client.publish({
+      destination: '/app/user.presence',
+      body: JSON.stringify({
+        userId: this.userId,
+        status
+      })
+    });
+  }
+
+  disconnect() {
+    if (this.client) {
+      this.updatePresence('OFFLINE');
+      this.client.deactivate();
+    }
+  }
+}
+
+export default new WebSocketClient();
+
+═══════════════════════════════════════════════════════════════════════════════
+10. COMPLETE INTEGRATION CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+Backend Setup:
+  ✅ New endpoints added to MessagingController
+  ✅ MessagingService enhanced with seller search
+  ✅ UserRepository.searchSellers() query added
+  ✅ SellerSearchResponse DTO created
+  ✅ WebSocket endpoints configured
+  ✅ All changes compiled successfully
+
+Frontend Implementation:
+  □ Install dependencies: npm install sockjs-client @stomp/stompjs lodash date-fns zustand
+  □ Create WebSocketClient.ts
+  □ Create messaging components (ConversationList, ChatWindow, etc.)
+  □ Implement /messages page with routing
+  □ Add seller search with debouncing
+  □ Connect WebSocket on page load
+  □ Test real-time messaging
+
+Key Features:
+  ✅ Seller search by name (debounced)
+  ✅ Conversation list with caching
+  ✅ Direct chat via ?sellerId query param
+  ✅ Real-time message delivery via WebSocket
+  ✅ Typing indicators
+  ✅ Online/offline status
+  ✅ Unread message counts
+  ✅ Product context in conversations
+  ✅ Message read receipts
+
+Testing URLs:
+  http://localhost:3000/messages
+  http://localhost:3000/messages?sellerId=e49b2831-f27b-4a08-91cb-e0c89ebca8a3
+  http://localhost:8080/api/messages/sellers/search?query=john
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF GUIDE
+═══════════════════════════════════════════════════════════════════════════════
