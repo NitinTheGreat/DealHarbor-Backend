@@ -2,10 +2,15 @@ package com.dealharbor.dealharbor_backend.controllers;
 
 import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.services.MessagingService;
+import com.dealharbor.dealharbor_backend.services.WebSocketMessagingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/messages")
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class MessagingController {
     
     private final MessagingService messagingService;
+    private final WebSocketMessagingService webSocketMessagingService;
 
     @PostMapping("/conversations")
     public ResponseEntity<ConversationResponse> startConversation(
@@ -105,5 +111,43 @@ public class MessagingController {
             Authentication authentication) {
         messagingService.deleteConversation(conversationId, authentication);
         return ResponseEntity.ok("Conversation deleted");
+    }
+
+    // ========== WebSocket Message Handlers ==========
+
+    /**
+     * Handle incoming chat messages via WebSocket
+     */
+    @MessageMapping("/chat.send")
+    public void sendChatMessage(@Payload ChatMessageDTO message, Principal principal) {
+        String senderId = principal.getName();
+        webSocketMessagingService.processAndSendMessage(message, senderId);
+    }
+
+    /**
+     * Handle presence updates (online/offline/typing)
+     */
+    @MessageMapping("/presence")
+    public void updatePresence(@Payload UserPresenceDTO presence, Principal principal) {
+        // Ensure userId matches authenticated user
+        presence.setUserId(principal.getName());
+        webSocketMessagingService.updateUserPresence(presence);
+    }
+
+    /**
+     * Handle read receipts
+     */
+    @MessageMapping("/message.read")
+    public void markAsRead(@Payload String messageId, Principal principal) {
+        String userId = principal.getName();
+        webSocketMessagingService.markMessageAsRead(messageId, userId);
+    }
+
+    /**
+     * Get online status of specific user (REST endpoint)
+     */
+    @GetMapping("/users/{userId}/online")
+    public ResponseEntity<Boolean> isUserOnline(@PathVariable String userId) {
+        return ResponseEntity.ok(webSocketMessagingService.isUserOnline(userId));
     }
 }

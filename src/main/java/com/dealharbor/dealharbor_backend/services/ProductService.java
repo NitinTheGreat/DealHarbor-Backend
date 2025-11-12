@@ -528,4 +528,128 @@ public class ProductService {
         return userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
+
+    /**
+     * Get trending products based on views and favorites in the last 7 days
+     */
+    public PagedResponse<ProductResponse> getTrendingProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Instant sevenDaysAgo = Instant.now().minus(7, ChronoUnit.DAYS);
+        
+        // Get products with high engagement (views + favorites) in the last week
+        Page<Product> productPage = productRepository.findTrendingProducts(sevenDaysAgo, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get recently added products (within last 48 hours)
+     */
+    public PagedResponse<ProductResponse> getRecentProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<Product> productPage = productRepository.findByStatusOrderByCreatedAtDesc(
+                ProductStatus.APPROVED, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get deals of the day - products with significant discounts
+     */
+    public PagedResponse<ProductResponse> getDealsOfTheDay(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        
+        // Get products where discount is >= 20%
+        Page<Product> productPage = productRepository.findDealsOfTheDay(pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get top-rated products based on seller rating and product favorites
+     */
+    public PagedResponse<ProductResponse> getTopRatedProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        
+        // Get products from top-rated sellers (rating >= 4.0) with most favorites
+        Page<Product> productPage = productRepository.findTopRatedProducts(pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get product previews grouped by category for homepage
+     */
+    public List<CategoryProductPreview> getProductsByCategoryPreview(int productsPerCategory) {
+        List<Category> mainCategories = categoryRepository.findByParentIdIsNullAndIsActiveTrueOrderBySortOrderAsc();
+        
+        return mainCategories.stream()
+                .map(category -> {
+                    Pageable pageable = PageRequest.of(0, productsPerCategory, Sort.by("createdAt").descending());
+                    Page<Product> products = productRepository.findByCategoryAndStatus(
+                            category, ProductStatus.APPROVED, pageable);
+                    
+                    long totalProducts = productRepository.countByCategoryAndStatus(category, ProductStatus.APPROVED);
+                    
+                    return CategoryProductPreview.builder()
+                            .categoryId(category.getId())
+                            .categoryName(category.getName())
+                            .categoryIcon(category.getIconUrl())
+                            .categoryImage(category.getIconUrl()) // Using iconUrl for both
+                            .totalProducts((int) totalProducts)
+                            .products(products.getContent().stream()
+                                    .map(this::convertToProductResponse)
+                                    .collect(Collectors.toList()))
+                            .build();
+                })
+                .filter(preview -> !preview.getProducts().isEmpty()) // Only include categories with products
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get homepage statistics for banner/hero section
+     */
+    public HomepageStatsResponse getHomepageStats() {
+        long totalProducts = productRepository.count();
+        long totalActiveProducts = productRepository.countByStatus(ProductStatus.APPROVED);
+        long totalUsers = userRepository.countByDeletedFalseAndEnabledTrue();
+        long totalVerifiedStudents = userRepository.countByIsVerifiedStudentTrue();
+        // Count sellers by querying products grouped by seller
+        long totalSellers = productRepository.findAll().stream()
+                .map(Product::getSeller)
+                .distinct()
+                .count();
+        long totalCategories = categoryRepository.count();
+        
+        Instant today = Instant.now().truncatedTo(ChronoUnit.DAYS);
+        Instant weekAgo = today.minus(7, ChronoUnit.DAYS);
+        
+        long productsAddedToday = productRepository.countByCreatedAtAfter(today);
+        long productsAddedThisWeek = productRepository.countByCreatedAtAfter(weekAgo);
+        
+        // Get most popular category
+        List<Object[]> categoryStats = productRepository.findMostPopularCategory();
+        String mostPopularCategory = "Electronics"; // Default
+        long mostPopularCategoryCount = 0;
+        
+        if (!categoryStats.isEmpty()) {
+            Object[] stat = categoryStats.get(0);
+            mostPopularCategory = (String) stat[0];
+            mostPopularCategoryCount = ((Number) stat[1]).longValue();
+        }
+        
+        return HomepageStatsResponse.builder()
+                .totalProducts(totalProducts)
+                .totalActiveProducts(totalActiveProducts)
+                .totalUsers(totalUsers)
+                .totalVerifiedStudents(totalVerifiedStudents)
+                .totalSellers(totalSellers)
+                .totalCategories(totalCategories)
+                .productsAddedToday(productsAddedToday)
+                .productsAddedThisWeek(productsAddedThisWeek)
+                .mostPopularCategory(mostPopularCategory)
+                .mostPopularCategoryCount(mostPopularCategoryCount)
+                .build();
+    }
 }

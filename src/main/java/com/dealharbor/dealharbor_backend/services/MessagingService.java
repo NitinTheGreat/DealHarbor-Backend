@@ -27,6 +27,7 @@ public class MessagingService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final NotificationService notificationService;
+    private final WebSocketMessagingService webSocketMessagingService;
 
     @Transactional
     public ConversationResponse startConversation(String otherUserId, String productId, Authentication authentication) {
@@ -357,6 +358,9 @@ public class MessagingService {
             productImageUrl = conversation.getProduct().getPrimaryImage().getImageUrl();
         }
         
+        // Check if other user is online
+        boolean isOnline = webSocketMessagingService.isUserOnline(otherUser.getId());
+        
         return new ConversationResponse(
                 conversation.getId(),
                 otherUser.getId(),
@@ -369,7 +373,8 @@ public class MessagingService {
                 lastMessage,
                 conversation.getLastMessageAt(),
                 unreadCount,
-                conversation.getIsActive()
+                conversation.getIsActive(),
+                isOnline
         );
     }
 

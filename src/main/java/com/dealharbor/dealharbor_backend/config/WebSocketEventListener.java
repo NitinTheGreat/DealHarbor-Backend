@@ -27,8 +27,17 @@ public class WebSocketEventListener {
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
+        Principal user = headerAccessor.getUser();
         
-        log.info("WebSocket connection established: sessionId={}", sessionId);
+        if (user != null) {
+            String userId = user.getName();
+            log.info("WebSocket connected: user={}, sessionId={}", userId, sessionId);
+            
+            // Update user presence to online
+            messagingService.handleUserConnect(userId, sessionId);
+        } else {
+            log.info("WebSocket connection established: sessionId={}", sessionId);
+        }
     }
 
     @EventListener

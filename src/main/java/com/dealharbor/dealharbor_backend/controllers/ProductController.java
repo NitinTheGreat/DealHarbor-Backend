@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -44,6 +46,45 @@ public class ProductController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(productService.getFeaturedProducts(page, size));
+    }
+
+    @GetMapping("/trending")
+    public ResponseEntity<PagedResponse<ProductResponse>> getTrendingProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        return ResponseEntity.ok(productService.getTrendingProducts(page, size));
+    }
+
+    @GetMapping("/recent")
+    public ResponseEntity<PagedResponse<ProductResponse>> getRecentProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        return ResponseEntity.ok(productService.getRecentProducts(page, size));
+    }
+
+    @GetMapping("/deals")
+    public ResponseEntity<PagedResponse<ProductResponse>> getDealsOfTheDay(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        return ResponseEntity.ok(productService.getDealsOfTheDay(page, size));
+    }
+
+    @GetMapping("/top-rated")
+    public ResponseEntity<PagedResponse<ProductResponse>> getTopRatedProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        return ResponseEntity.ok(productService.getTopRatedProducts(page, size));
+    }
+
+    @GetMapping("/by-category-preview")
+    public ResponseEntity<List<CategoryProductPreview>> getProductsByCategoryPreview(
+            @RequestParam(defaultValue = "6") int productsPerCategory) {
+        return ResponseEntity.ok(productService.getProductsByCategoryPreview(productsPerCategory));
+    }
+
+    @GetMapping("/homepage-stats")
+    public ResponseEntity<HomepageStatsResponse> getHomepageStats() {
+        return ResponseEntity.ok(productService.getHomepageStats());
     }
 
     @GetMapping("/{productId}")
