@@ -4,6 +4,7 @@ import com.dealharbor.dealharbor_backend.enums.UserRole;
 import com.dealharbor.dealharbor_backend.enums.SellerBadge;
 import jakarta.persistence.*;
 import lombok.*;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -13,7 +14,8 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class User implements Serializable {
+    private static final long serialVersionUID = 1L;
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;

@@ -582,9 +582,10 @@ public class ProductService {
      * Get product previews grouped by category for homepage
      */
     public List<CategoryProductPreview> getProductsByCategoryPreview(int productsPerCategory) {
-        List<Category> mainCategories = categoryRepository.findByParentIdIsNullAndIsActiveTrueOrderBySortOrderAsc();
+        // Get all active categories (not just main categories) to ensure we show products
+        List<Category> categories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
         
-        return mainCategories.stream()
+        return categories.stream()
                 .map(category -> {
                     Pageable pageable = PageRequest.of(0, productsPerCategory, Sort.by("createdAt").descending());
                     Page<Product> products = productRepository.findByCategoryAndStatus(
