@@ -92,6 +92,14 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductById(productId));
     }
 
+    @GetMapping("/seller/{sellerId}")
+    public ResponseEntity<PagedResponse<ProductResponse>> getProductsBySeller(
+            @PathVariable String sellerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(productService.getProductsBySeller(sellerId, page, size));
+    }
+
     // Protected endpoints (authentication required)
 
     @PostMapping

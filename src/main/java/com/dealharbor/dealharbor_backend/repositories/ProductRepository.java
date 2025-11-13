@@ -81,6 +81,10 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     List<Product> findByStatus(ProductStatus status);
     List<Product> findByStatusAndCreatedAtBefore(ProductStatus status, Instant createdBefore);
     
+    // Archival queries
+    @Query("SELECT p FROM Product p WHERE p.status = :status AND p.createdAt < :createdBefore")
+    List<Product> findProductsForArchival(@Param("status") ProductStatus status, @Param("createdBefore") Instant createdBefore);
+    
     // Homepage queries for landing page
     @Query("SELECT p FROM Product p WHERE p.status = 'APPROVED' AND p.createdAt >= :since " +
            "ORDER BY (p.viewCount + p.favoriteCount * 2) DESC, p.createdAt DESC")

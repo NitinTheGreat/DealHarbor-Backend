@@ -199,6 +199,16 @@ public class ProductService {
         return convertToPagedResponse(productPage);
     }
 
+    public PagedResponse<ProductResponse> getProductsBySeller(String sellerId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        // Only show APPROVED products for public seller profile
+        Page<Product> productPage = productRepository.findBySellerIdAndStatusOrderByCreatedAtDesc(
+                sellerId, ProductStatus.APPROVED, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
     @Transactional
     public ProductResponse updateProduct(String productId, ProductUpdateRequest request, Authentication authentication) {
         User user = getUserFromAuthentication(authentication);
