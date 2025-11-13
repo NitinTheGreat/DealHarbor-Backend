@@ -5,16 +5,17 @@ import com.dealharbor.dealharbor_backend.entities.UnsoldProduct;
 import com.dealharbor.dealharbor_backend.entities.User;
 import com.dealharbor.dealharbor_backend.repositories.SoldProductRepository;
 import com.dealharbor.dealharbor_backend.repositories.UnsoldProductRepository;
+import com.dealharbor.dealharbor_backend.repositories.UserRepository;
 import com.dealharbor.dealharbor_backend.services.ProductArchivalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,17 @@ public class ProductArchivalController {
     private final ProductArchivalService productArchivalService;
     private final SoldProductRepository soldProductRepository;
     private final UnsoldProductRepository unsoldProductRepository;
+    private final UserRepository userRepository;
+
+    private User getUserFromAuthentication(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
+        
+        String email = ((UserDetails) authentication.getPrincipal()).getUsername();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
 
     /**
      * Mark a product as sold
@@ -36,9 +48,10 @@ public class ProductArchivalController {
     public ResponseEntity<?> markProductAsSold(
             @PathVariable String productId,
             @RequestBody(required = false) MarkSoldRequest request,
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
         try {
+            User currentUser = getUserFromAuthentication(authentication);
             String buyerId = request != null ? request.buyerId() : null;
             Double soldPrice = request != null ? request.soldPrice() : null;
             
@@ -65,8 +78,9 @@ public class ProductArchivalController {
     public ResponseEntity<Page<SoldProductResponse>> getSoldProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, size);
         Page<SoldProduct> soldProducts = soldProductRepository.findBySellerIdOrderBySoldAtDesc(
                 currentUser.getId(), pageable);
@@ -80,8 +94,9 @@ public class ProductArchivalController {
      */
     @GetMapping("/sold/all")
     public ResponseEntity<List<SoldProductResponse>> getAllSoldProducts(
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         List<SoldProduct> soldProducts = soldProductRepository.findBySellerIdOrderBySoldAtDesc(
                 currentUser.getId());
         
@@ -98,8 +113,9 @@ public class ProductArchivalController {
     public ResponseEntity<Page<UnsoldProductResponse>> getUnsoldProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, size);
         Page<UnsoldProduct> unsoldProducts = unsoldProductRepository.findBySellerIdOrderByArchivedAtDesc(
                 currentUser.getId(), pageable);
@@ -113,8 +129,9 @@ public class ProductArchivalController {
      */
     @GetMapping("/unsold/all")
     public ResponseEntity<List<UnsoldProductResponse>> getAllUnsoldProducts(
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         List<UnsoldProduct> unsoldProducts = unsoldProductRepository.findBySellerIdOrderByArchivedAtDesc(
                 currentUser.getId());
         
@@ -129,8 +146,9 @@ public class ProductArchivalController {
      */
     @GetMapping("/stats")
     public ResponseEntity<ArchivalStatsResponse> getArchivalStats(
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         ProductArchivalService.ArchivalStats stats = 
                 productArchivalService.getArchivalStats(currentUser.getId());
         
@@ -148,8 +166,9 @@ public class ProductArchivalController {
     @GetMapping("/sold/{productId}")
     public ResponseEntity<?> getSoldProductById(
             @PathVariable String productId,
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         return soldProductRepository.findById(productId)
                 .filter(sp -> sp.getSellerId().equals(currentUser.getId()))
                 .map(sp -> ResponseEntity.ok(convertToSoldProductResponse(sp)))
@@ -163,8 +182,9 @@ public class ProductArchivalController {
     @GetMapping("/unsold/{productId}")
     public ResponseEntity<?> getUnsoldProductById(
             @PathVariable String productId,
-            @AuthenticationPrincipal User currentUser) {
+            Authentication authentication) {
         
+        User currentUser = getUserFromAuthentication(authentication);
         return unsoldProductRepository.findById(productId)
                 .filter(up -> up.getSellerId().equals(currentUser.getId()))
                 .map(up -> ResponseEntity.ok(convertToUnsoldProductResponse(up)))
