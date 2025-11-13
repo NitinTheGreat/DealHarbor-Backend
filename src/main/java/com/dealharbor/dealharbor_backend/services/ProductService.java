@@ -2,6 +2,7 @@ package com.dealharbor.dealharbor_backend.services;
 
 import com.dealharbor.dealharbor_backend.dto.*;
 import com.dealharbor.dealharbor_backend.entities.*;
+import com.dealharbor.dealharbor_backend.enums.NotificationType;
 import com.dealharbor.dealharbor_backend.enums.ProductStatus;
 import com.dealharbor.dealharbor_backend.repositories.*;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,9 @@ public class ProductService {
     private final ProductImageRepository productImageRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final EmailService emailService;
+    private final ProductPendingReviewRepository productPendingReviewRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request, Authentication authentication) {
@@ -195,6 +199,16 @@ public class ProductService {
         return convertToPagedResponse(productPage);
     }
 
+    public PagedResponse<ProductResponse> getProductsBySeller(String sellerId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        // Only show APPROVED products for public seller profile
+        Page<Product> productPage = productRepository.findBySellerIdAndStatusOrderByCreatedAtDesc(
+                sellerId, ProductStatus.APPROVED, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
     @Transactional
     public ProductResponse updateProduct(String productId, ProductUpdateRequest request, Authentication authentication) {
         User user = getUserFromAuthentication(authentication);
@@ -283,63 +297,131 @@ public class ProductService {
     }
     
     /**
-     * Scheduled task to automatically delete rejected products and products pending for more than 14 days
+     * Scheduled task to:
+     * 1. Delete rejected products immediately
+     * 2. Move products pending for 14+ days to review queue (instead of deleting)
      * Runs daily at 2 AM
      */
     @Scheduled(cron = "0 0 2 * * *")
     @Transactional
     public void autoDeleteExpiredProducts() {
-        log.info("Starting automatic cleanup of expired products...");
+        log.info("Starting automatic cleanup and review queue processing...");
         
         Instant fourteenDaysAgo = Instant.now().minus(14, ChronoUnit.DAYS);
         
-        // Find all rejected products
+        // Find all rejected products - these will be deleted
         List<Product> rejectedProducts = productRepository.findByStatus(ProductStatus.REJECTED);
         
-        // Find all pending products older than 14 days
+        // Find all pending products older than 14 days - these will be moved to review queue
         List<Product> oldPendingProducts = productRepository.findByStatusAndCreatedAtBefore(
                 ProductStatus.PENDING, fourteenDaysAgo);
         
         int deletedCount = 0;
+        int movedToReviewCount = 0;
         
         // Delete rejected products
         for (Product product : rejectedProducts) {
             try {
+                User seller = product.getSeller();
+                String productTitle = product.getTitle();
+                
+                // Send email notification before deletion
+                try {
+                    emailService.sendProductAutoDeletedNotification(
+                            seller.getEmail(),
+                            seller.getName(),
+                            productTitle,
+                            "Your product was rejected by admin and has been automatically removed from the system.",
+                            product.getCreatedAt()
+                    );
+                    log.info("Sent auto-deletion email to {} for rejected product: {}", seller.getEmail(), productTitle);
+                } catch (Exception e) {
+                    log.error("Failed to send email notification for rejected product {}: {}", product.getId(), e.getMessage());
+                }
+                
                 deleteProductImages(product);
                 productRepository.delete(product);
                 
                 // Update seller stats
-                User seller = product.getSeller();
                 seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
                 userRepository.save(seller);
                 
                 deletedCount++;
-                log.info("Auto-deleted rejected product: {} ({})", product.getId(), product.getTitle());
+                log.info("Auto-deleted rejected product: {} ({})", product.getId(), productTitle);
             } catch (Exception e) {
                 log.error("Failed to delete rejected product {}: {}", product.getId(), e.getMessage());
             }
         }
         
-        // Delete old pending products
+        // Move old pending products to review queue instead of deleting
         for (Product product : oldPendingProducts) {
             try {
-                deleteProductImages(product);
-                productRepository.delete(product);
+                // Check if already in review queue
+                if (productPendingReviewRepository.existsByProductIdAndIsResolvedFalse(product.getId())) {
+                    log.debug("Product {} already in review queue, skipping", product.getId());
+                    continue;
+                }
                 
-                // Update seller stats
                 User seller = product.getSeller();
-                seller.setActiveListings(Math.max(0, seller.getActiveListings() - 1));
-                userRepository.save(seller);
+                String productTitle = product.getTitle();
+                long daysPending = ChronoUnit.DAYS.between(product.getCreatedAt(), Instant.now());
                 
-                deletedCount++;
-                log.info("Auto-deleted old pending product: {} ({}) - Created: {}", 
-                        product.getId(), product.getTitle(), product.getCreatedAt());
+                // Create review record
+                ProductPendingReview review = ProductPendingReview.builder()
+                        .product(product)
+                        .originalCreatedAt(product.getCreatedAt())
+                        .movedToReviewAt(Instant.now())
+                        .daysPending((int) daysPending)
+                        .userNotified(false)
+                        .isResolved(false)
+                        .build();
+                
+                productPendingReviewRepository.save(review);
+                
+                // Send email notification to user
+                try {
+                    emailService.sendProductMovedToReview(
+                            seller.getEmail(),
+                            seller.getName(),
+                            productTitle,
+                            (int) daysPending
+                    );
+                    
+                    review.setUserNotified(true);
+                    review.setNotificationSentAt(Instant.now());
+                    productPendingReviewRepository.save(review);
+                    
+                    log.info("Sent review notification email to {} for product: {}", seller.getEmail(), productTitle);
+                } catch (Exception e) {
+                    log.error("Failed to send email notification for product {}: {}", product.getId(), e.getMessage());
+                }
+                
+                // Create in-app notification
+                try {
+                    notificationService.createNotification(
+                            seller.getId(),
+                            "Product Needs Your Attention",
+                            "Your product '" + productTitle + "' has been pending for " + daysPending + 
+                            " days. Please edit it to improve approval chances.",
+                            NotificationType.PRODUCT_UPDATE,
+                            "/products/" + product.getId() + "/edit",
+                            product.getId(),
+                            "PRODUCT"
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to create notification for product {}: {}", product.getId(), e.getMessage());
+                }
+                
+                movedToReviewCount++;
+                log.info("Moved product to review queue: {} ({}) - Pending for {} days", 
+                        product.getId(), productTitle, daysPending);
             } catch (Exception e) {
-                log.error("Failed to delete old pending product {}: {}", product.getId(), e.getMessage());
+                log.error("Failed to move product {} to review queue: {}", product.getId(), e.getMessage());
             }
         }
         
-        log.info("Automatic cleanup completed. Deleted {} products.", deletedCount);
+        log.info("Automatic cleanup completed. Deleted {} rejected products. Moved {} old pending products to review queue.", 
+                deletedCount, movedToReviewCount);
     }
     
     /**
@@ -455,5 +537,130 @@ public class ProductService {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         return userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    /**
+     * Get trending products based on views and favorites in the last 7 days
+     */
+    public PagedResponse<ProductResponse> getTrendingProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Instant sevenDaysAgo = Instant.now().minus(7, ChronoUnit.DAYS);
+        
+        // Get products with high engagement (views + favorites) in the last week
+        Page<Product> productPage = productRepository.findTrendingProducts(sevenDaysAgo, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get recently added products (within last 48 hours)
+     */
+    public PagedResponse<ProductResponse> getRecentProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<Product> productPage = productRepository.findByStatusOrderByCreatedAtDesc(
+                ProductStatus.APPROVED, pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get deals of the day - products with significant discounts
+     */
+    public PagedResponse<ProductResponse> getDealsOfTheDay(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        
+        // Get products where discount is >= 20%
+        Page<Product> productPage = productRepository.findDealsOfTheDay(pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get top-rated products based on seller rating and product favorites
+     */
+    public PagedResponse<ProductResponse> getTopRatedProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        
+        // Get products from top-rated sellers (rating >= 4.0) with most favorites
+        Page<Product> productPage = productRepository.findTopRatedProducts(pageable);
+        
+        return convertToPagedResponse(productPage);
+    }
+
+    /**
+     * Get product previews grouped by category for homepage
+     */
+    public List<CategoryProductPreview> getProductsByCategoryPreview(int productsPerCategory) {
+        // Get all active categories (not just main categories) to ensure we show products
+        List<Category> categories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
+        
+        return categories.stream()
+                .map(category -> {
+                    Pageable pageable = PageRequest.of(0, productsPerCategory, Sort.by("createdAt").descending());
+                    Page<Product> products = productRepository.findByCategoryAndStatus(
+                            category, ProductStatus.APPROVED, pageable);
+                    
+                    long totalProducts = productRepository.countByCategoryAndStatus(category, ProductStatus.APPROVED);
+                    
+                    return CategoryProductPreview.builder()
+                            .categoryId(category.getId())
+                            .categoryName(category.getName())
+                            .categoryIcon(category.getIconUrl())
+                            .categoryImage(category.getIconUrl()) // Using iconUrl for both
+                            .totalProducts((int) totalProducts)
+                            .products(products.getContent().stream()
+                                    .map(this::convertToProductResponse)
+                                    .collect(Collectors.toList()))
+                            .build();
+                })
+                .filter(preview -> !preview.getProducts().isEmpty()) // Only include categories with products
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get homepage statistics for banner/hero section
+     */
+    public HomepageStatsResponse getHomepageStats() {
+        long totalProducts = productRepository.count();
+        long totalActiveProducts = productRepository.countByStatus(ProductStatus.APPROVED);
+        long totalUsers = userRepository.countByDeletedFalseAndEnabledTrue();
+        long totalVerifiedStudents = userRepository.countByIsVerifiedStudentTrue();
+        // Count sellers by querying products grouped by seller
+        long totalSellers = productRepository.findAll().stream()
+                .map(Product::getSeller)
+                .distinct()
+                .count();
+        long totalCategories = categoryRepository.count();
+        
+        Instant today = Instant.now().truncatedTo(ChronoUnit.DAYS);
+        Instant weekAgo = today.minus(7, ChronoUnit.DAYS);
+        
+        long productsAddedToday = productRepository.countByCreatedAtAfter(today);
+        long productsAddedThisWeek = productRepository.countByCreatedAtAfter(weekAgo);
+        
+        // Get most popular category
+        List<Object[]> categoryStats = productRepository.findMostPopularCategory();
+        String mostPopularCategory = "Electronics"; // Default
+        long mostPopularCategoryCount = 0;
+        
+        if (!categoryStats.isEmpty()) {
+            Object[] stat = categoryStats.get(0);
+            mostPopularCategory = (String) stat[0];
+            mostPopularCategoryCount = ((Number) stat[1]).longValue();
+        }
+        
+        return HomepageStatsResponse.builder()
+                .totalProducts(totalProducts)
+                .totalActiveProducts(totalActiveProducts)
+                .totalUsers(totalUsers)
+                .totalVerifiedStudents(totalVerifiedStudents)
+                .totalSellers(totalSellers)
+                .totalCategories(totalCategories)
+                .productsAddedToday(productsAddedToday)
+                .productsAddedThisWeek(productsAddedThisWeek)
+                .mostPopularCategory(mostPopularCategory)
+                .mostPopularCategoryCount(mostPopularCategoryCount)
+                .build();
     }
 }

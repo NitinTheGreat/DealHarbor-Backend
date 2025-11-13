@@ -9,6 +9,7 @@ public enum NotificationType {
     PRODUCT_APPROVED("Product Approved", "Your product has been approved"),
     PRODUCT_REJECTED("Product Rejected", "Your product has been rejected"),
     PRODUCT_SOLD("Product Sold", "Your product has been sold"),
+    PRODUCT_UPDATE("Product Update", "Update on your product listing"),
     
     NEW_MESSAGE("New Message", "You have a new message"),
     NEW_REVIEW("New Review", "You have received a new review"),

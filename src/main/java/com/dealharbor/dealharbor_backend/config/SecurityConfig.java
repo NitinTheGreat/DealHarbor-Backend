@@ -24,11 +24,13 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
+import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
 
 import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
+@EnableRedisHttpSession(maxInactiveIntervalInSeconds = 86400) // 24 hours
 @RequiredArgsConstructor
 public class SecurityConfig {
 

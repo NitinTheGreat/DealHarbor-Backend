@@ -128,6 +128,108 @@ public class EmailService {
         sendMail(to, subject, text);
     }
 
+    public void sendProductAutoDeletedNotification(String to, String userName, String productTitle, String reason, Instant createdAt) {
+        String subject = "DealHarbor - Product Automatically Removed";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Your product '" + productTitle + "' has been automatically removed from DealHarbor.\n\n" +
+                     "Reason: " + reason + "\n\n";
+        
+        if (reason.contains("pending")) {
+            text += "Products that remain pending for more than 14 days without admin approval are automatically deleted.\n\n" +
+                   "Listed on: " + createdAt + "\n\n" +
+                   "What you can do:\n" +
+                   "• List your product again with better details\n" +
+                   "• Ensure all information is accurate and complete\n" +
+                   "• Add clear, high-quality images\n" +
+                   "• Follow our listing guidelines\n\n";
+        } else if (reason.contains("rejected")) {
+            text += "Products that have been rejected by our admin team are automatically removed from the system.\n\n" +
+                   "What you can do:\n" +
+                   "• Review the rejection reason in your notifications\n" +
+                   "• Make necessary corrections\n" +
+                   "• Submit a new listing that follows our guidelines\n\n";
+        }
+        
+        text += "Thank you for using DealHarbor!\n\n" +
+               "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductPendingReminder(String to, String userName, String productTitle, int daysRemaining) {
+        String subject = "DealHarbor - Product Pending Approval Reminder";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Your product '" + productTitle + "' has been pending approval for " + (14 - daysRemaining) + " days.\n\n" +
+                     "⚠️ IMPORTANT: Products pending for more than 14 days will be automatically deleted.\n\n" +
+                     "Days remaining: " + daysRemaining + " days\n\n" +
+                     "What you can do:\n" +
+                     "• Wait for admin approval (usually within 24-48 hours)\n" +
+                     "• Ensure your product listing is complete and accurate\n" +
+                     "• Check that all images are clear and relevant\n\n" +
+                     "If your product is not approved within " + daysRemaining + " days, it will be automatically removed " +
+                     "and you'll need to list it again.\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductMovedToReview(String to, String userName, String productTitle, int daysPending) {
+        String subject = "DealHarbor - Product Needs Your Attention";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Your product '" + productTitle + "' has been pending approval for " + daysPending + " days.\n\n" +
+                     "⚠️ ACTION REQUIRED:\n\n" +
+                     "Your product has been moved to an extended review queue. This means:\n\n" +
+                     "1. Your product is still visible to admins for review\n" +
+                     "2. You can edit your product listing to improve its chances of approval\n" +
+                     "3. The admin team will review it soon\n\n" +
+                     "💡 RECOMMENDATIONS:\n" +
+                     "• Review your product description - make it clear and detailed\n" +
+                     "• Check your images - ensure they are clear and show the product well\n" +
+                     "• Verify all information is accurate (price, condition, etc.)\n" +
+                     "• Make sure you've followed our listing guidelines\n\n" +
+                     "You can edit your product by:\n" +
+                     "1. Logging into your account\n" +
+                     "2. Going to 'My Products'\n" +
+                     "3. Clicking 'Edit' on this product\n\n" +
+                     "After you make improvements, an admin will review it and make a decision.\n\n" +
+                     "⚠️ If your product is REJECTED after this review, it will be permanently deleted.\n" +
+                     "⚠️ If APPROVED, it will go live on the marketplace immediately!\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductApprovedAfterReview(String to, String userName, String productTitle) {
+        String subject = "DealHarbor - Great News! Your Product is Approved";
+        String text = "Hi " + userName + ",\n\n" +
+                     "🎉 Excellent news! Your product '" + productTitle + "' has been approved!\n\n" +
+                     "Your product is now live on the DealHarbor marketplace and visible to all users.\n\n" +
+                     "Thank you for taking the time to improve your listing. Your attention to detail has paid off!\n\n" +
+                     "What happens next:\n" +
+                     "• Your product is now searchable by all users\n" +
+                     "• Buyers can contact you for inquiries\n" +
+                     "• You'll receive notifications when users show interest\n\n" +
+                     "Best of luck with your sale!\n\n" +
+                     "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
+    public void sendProductRejectedAfterReview(String to, String userName, String productTitle, String reason) {
+        String subject = "DealHarbor - Product Rejected After Review";
+        String text = "Hi " + userName + ",\n\n" +
+                     "Unfortunately, your product '" + productTitle + "' has been rejected after extended review.\n\n";
+        
+        if (reason != null && !reason.isEmpty()) {
+            text += "Reason: " + reason + "\n\n";
+        }
+        
+        text += "Your product has been permanently removed from our system.\n\n" +
+               "What you can do next:\n" +
+               "• Review our listing guidelines carefully\n" +
+               "• Address the issues mentioned in the rejection reason\n" +
+               "• Create a new listing with improved details and images\n\n" +
+               "We appreciate your understanding and encourage you to list again with the necessary improvements.\n\n" +
+               "Best regards,\nDealHarbor Team";
+        sendMail(to, subject, text);
+    }
+
     private void sendMail(String to, String subject, String text) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);

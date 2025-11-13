@@ -20,4 +20,5 @@ public class ConversationResponse {
     private Instant lastMessageAt;
     private long unreadCount;
     private boolean isActive;
+    private boolean isOnline; // Online status of other user
 }
