@@ -1,0 +1,60 @@
+{
+  "family": "dealharbor-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "dealharbor-backend",
+      "image": "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/dealharbor-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "SPRING_PROFILES_ACTIVE", "value": "prod"},
+        {"name": "PORT", "value": "8080"}
+      ],
+      "secrets": [
+        {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/database:DATABASE_URL::"},
+        {"name": "DATABASE_USERNAME", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/database:DATABASE_USERNAME::"},
+        {"name": "DATABASE_PASSWORD", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/database:DATABASE_PASSWORD::"},
+        {"name": "REDIS_HOST", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/redis:REDIS_HOST::"},
+        {"name": "JWT_SECRET", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/app:JWT_SECRET::"},
+        {"name": "MAIL_USERNAME", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/mail:MAIL_USERNAME::"},
+        {"name": "MAIL_PASSWORD", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/mail:MAIL_PASSWORD::"},
+        {"name": "MAIL_FROM", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/mail:MAIL_FROM::"},
+        {"name": "GOOGLE_CLIENT_ID", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/oauth:GOOGLE_CLIENT_ID::"},
+        {"name": "GOOGLE_CLIENT_SECRET", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/oauth:GOOGLE_CLIENT_SECRET::"},
+        {"name": "GITHUB_CLIENT_ID", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/oauth:GITHUB_CLIENT_ID::"},
+        {"name": "GITHUB_CLIENT_SECRET", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/oauth:GITHUB_CLIENT_SECRET::"},
+        {"name": "OAUTH2_REDIRECT_URI", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/oauth:OAUTH2_REDIRECT_URI::"},
+        {"name": "SUPABASE_PROJECT_URL", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/supabase:SUPABASE_PROJECT_URL::"},
+        {"name": "SUPABASE_SERVICE_ROLE_KEY", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/supabase:SUPABASE_SERVICE_ROLE_KEY::"},
+        {"name": "SUPABASE_PUBLIC_URL", "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:dealharbor/supabase:SUPABASE_PUBLIC_URL::"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dealharbor-backend",
+          "awslogs-region": "YOUR_REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
