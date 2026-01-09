@@ -1,14 +1,24 @@
+<<<<<<< HEAD
 # Git
 .git
 .gitignore
 
 # IDE
+=======
+# Ignore files for Docker builds
+target/
+!target/*.jar
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+>>>>>>> 12a18e9815956d28ceb54c941cde83e736d30412
 .idea/
 *.iml
 .vscode/
 *.swp
 *.swo
 
+<<<<<<< HEAD
 # Build outputs
 target/
 !target/*.jar
@@ -22,10 +32,22 @@ logs/
 .env.local
 *.local
 
+=======
+>>>>>>> 12a18e9815956d28ceb54c941cde83e736d30412
 # OS files
 .DS_Store
 Thumbs.db
 
+<<<<<<< HEAD
+=======
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+>>>>>>> 12a18e9815956d28ceb54c941cde83e736d30412
 # Documentation
 *.md
 !README.md
@@ -33,5 +55,10 @@ Thumbs.db
 # Test files
 src/test/
 
+<<<<<<< HEAD
 # Uploads (will be handled by S3/Supabase in production)
 uploads/
+=======
+# Build artifacts
+*.class
+>>>>>>> 12a18e9815956d28ceb54c941cde83e736d30412
