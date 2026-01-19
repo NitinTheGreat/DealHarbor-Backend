@@ -7,9 +7,11 @@ import com.dealharbor.dealharbor_backend.repositories.UserRepository;
 import com.dealharbor.dealharbor_backend.security.OAuth2UserInfoFactory;
 import com.dealharbor.dealharbor_backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -29,12 +32,29 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest oAuth2UserRequest) throws OAuth2AuthenticationException {
-        OAuth2User oAuth2User = super.loadUser(oAuth2UserRequest);
+        String registrationId = oAuth2UserRequest.getClientRegistration().getRegistrationId();
+        log.info("Processing OAuth2 login for provider: {}", registrationId);
+        
+        OAuth2User oAuth2User;
+        try {
+            oAuth2User = super.loadUser(oAuth2UserRequest);
+            log.info("Successfully loaded user info from provider: {}", registrationId);
+        } catch (Exception ex) {
+            log.error("Failed to load user from OAuth2 provider {}: {}", registrationId, ex.getMessage(), ex);
+            throw new OAuth2AuthenticationException(
+                new OAuth2Error("user_load_failed", "Failed to load user from " + registrationId + ": " + ex.getMessage(), null),
+                ex
+            );
+        }
 
         try {
             return processOAuth2User(oAuth2UserRequest, oAuth2User);
         } catch (Exception ex) {
-            throw new OAuth2AuthenticationException(ex.getMessage());
+            log.error("Failed to process OAuth2 user for {}: {}", registrationId, ex.getMessage(), ex);
+            throw new OAuth2AuthenticationException(
+                new OAuth2Error("authentication_failed", ex.getMessage(), null),
+                ex
+            );
         }
     }
 
