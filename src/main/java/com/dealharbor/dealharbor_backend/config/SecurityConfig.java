@@ -2,6 +2,7 @@ package com.dealharbor.dealharbor_backend.config;
 
 import com.dealharbor.dealharbor_backend.services.CustomOAuth2UserService;
 import com.dealharbor.dealharbor_backend.security.OAuth2LoginSuccessHandler;
+import com.dealharbor.dealharbor_backend.security.OAuth2LoginFailureHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +37,7 @@ public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     @Bean
     public SecurityContextRepository securityContextRepository() {
@@ -87,10 +89,17 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
+                .authorizationEndpoint(authorization -> authorization
+                    .baseUri("/oauth2/authorization")
+                )
+                .redirectionEndpoint(redirection -> redirection
+                    .baseUri("/oauth2/callback/*")
+                )
                 .userInfoEndpoint(userInfo -> userInfo
                     .userService(customOAuth2UserService)
                 )
                 .successHandler(oAuth2LoginSuccessHandler)
+                .failureHandler(oAuth2LoginFailureHandler)
             );
 
         return http.build();
@@ -106,6 +115,8 @@ public class SecurityConfig {
             "http://127.0.0.1:3000",
             "http://localhost:3001",
             "http://127.0.0.1:3001",
+            "https://deal-harbor-frontend.vercel.app",
+            "https://yqstbpypmm.ap-south-1.awsapprunner.com",
             "null" // allow file:// origins which appear as 'null'
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -130,15 +141,15 @@ public class SecurityConfig {
     }
 
     // Cookie configuration for cross-origin requests
-    // Using SameSite=None to allow cookies to be sent from different origins (e.g., frontend on :3001)
-    // Note: SameSite=None requires Secure flag, but we're in development so using null for now
+    // For localhost HTTP: use SameSite=Lax, Secure=false
+    // For production HTTPS: use SameSite=None, Secure=true
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
         serializer.setCookieName("SESSION");
-        serializer.setUseHttpOnlyCookie(false); // Set to false to allow JavaScript access if needed
-        serializer.setSameSite(null); // Allow cross-origin cookies in development
-        serializer.setUseSecureCookie(false); // Set to false for HTTP (development)
+        serializer.setUseHttpOnlyCookie(true); // Prevent XSS access to session cookie
+        serializer.setSameSite("Lax"); // Lax works for same-site OAuth (localhost)
+        serializer.setUseSecureCookie(false); // False for HTTP localhost
         serializer.setCookiePath("/");
         return serializer;
     }

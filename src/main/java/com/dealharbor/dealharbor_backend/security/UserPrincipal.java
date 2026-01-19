@@ -39,9 +39,16 @@ public class UserPrincipal implements OAuth2User, UserDetails, Serializable {
     }
 
     public static UserPrincipal create(User user, Map<String, Object> attributes) {
-        UserPrincipal userPrincipal = UserPrincipal.create(user);
-        userPrincipal.attributes = attributes;
-        return userPrincipal;
+        List<GrantedAuthority> authorities = Collections.
+                singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+
+        return new UserPrincipal(
+                user.getId(),
+                user.getEmail(),
+                user.getPasswordHash(),
+                authorities,
+                attributes
+        );
     }
 
     @Override

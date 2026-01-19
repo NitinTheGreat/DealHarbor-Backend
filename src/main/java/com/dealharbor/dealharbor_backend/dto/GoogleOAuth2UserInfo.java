@@ -10,7 +10,13 @@ public class GoogleOAuth2UserInfo extends OAuth2UserInfo {
 
     @Override
     public String getId() {
-        return (String) attributes.get("sub");
+        // Try 'sub' first (OpenID Connect standard), fallback to 'id' (legacy v2)
+        Object sub = attributes.get("sub");
+        if (sub != null) {
+            return String.valueOf(sub);
+        }
+        Object id = attributes.get("id");
+        return id != null ? String.valueOf(id) : null;
     }
 
     @Override
