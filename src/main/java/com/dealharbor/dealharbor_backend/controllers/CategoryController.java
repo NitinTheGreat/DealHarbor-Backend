@@ -1,6 +1,7 @@
 package com.dealharbor.dealharbor_backend.controllers;
 
 import com.dealharbor.dealharbor_backend.dto.CategoryResponse;
+import com.dealharbor.dealharbor_backend.dto.FeaturedCategoryResponse;
 import com.dealharbor.dealharbor_backend.services.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,12 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getMainCategories());
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<List<FeaturedCategoryResponse>> getFeaturedCategories(
+            @RequestParam(defaultValue = "6") int limit) {
+        return ResponseEntity.ok(categoryService.getFeaturedCategories(limit));
+    }
+
     @GetMapping("/{categoryId}")
     public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable String categoryId) {
         return ResponseEntity.ok(categoryService.getCategoryById(categoryId));
@@ -36,3 +43,4 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getSubCategories(parentId));
     }
 }
+
