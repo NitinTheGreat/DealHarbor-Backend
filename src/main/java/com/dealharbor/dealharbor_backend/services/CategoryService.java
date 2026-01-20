@@ -1,12 +1,15 @@
 package com.dealharbor.dealharbor_backend.services;
 
 import com.dealharbor.dealharbor_backend.dto.CategoryResponse;
+import com.dealharbor.dealharbor_backend.dto.FeaturedCategoryResponse;
 import com.dealharbor.dealharbor_backend.entities.Category;
+import com.dealharbor.dealharbor_backend.enums.ProductStatus;
 import com.dealharbor.dealharbor_backend.repositories.CategoryRepository;
 import com.dealharbor.dealharbor_backend.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,11 +55,32 @@ public class CategoryService {
         return convertToCategoryResponse(category);
     }
 
+    /**
+     * Get featured categories ordered by product count (for Quick Browse section)
+     */
+    public List<FeaturedCategoryResponse> getFeaturedCategories(int limit) {
+        List<Category> categories = categoryRepository.findByIsActiveTrueOrderBySortOrderAsc();
+        
+        return categories.stream()
+                .map(category -> {
+                    long productCount = productRepository.countByCategoryIdAndStatus(
+                            category.getId(), ProductStatus.APPROVED);
+                    return FeaturedCategoryResponse.builder()
+                            .id(category.getId())
+                            .name(category.getName())
+                            .productCount(productCount)
+                            .iconName(category.getIconUrl())
+                            .imageUrl(category.getIconUrl())
+                            .build();
+                })
+                .sorted(Comparator.comparingLong(FeaturedCategoryResponse::getProductCount).reversed())
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
     private CategoryResponse convertToCategoryResponse(Category category) {
         long productCount = productRepository.countByCategoryIdAndStatus(
-                category.getId(), 
-                com.dealharbor.dealharbor_backend.enums.ProductStatus.APPROVED
-        );
+                category.getId(), ProductStatus.APPROVED);
         
         return new CategoryResponse(
                 category.getId(),
@@ -72,3 +96,4 @@ public class CategoryService {
         );
     }
 }
+

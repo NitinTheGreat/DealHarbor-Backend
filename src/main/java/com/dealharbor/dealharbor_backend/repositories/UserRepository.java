@@ -52,4 +52,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     long countByIsBannedTrue();
     long countByIsVerifiedStudentTrue();
     long countByCreatedAtAfter(Instant since);
+    
+    // Seller queries for homepage
+    @Query("SELECT u FROM User u WHERE u.deleted = false AND u.enabled = true AND u.isBanned = false AND u.totalSales > 0 ORDER BY u.sellerRating DESC, u.totalSales DESC")
+    java.util.List<User> findActiveSellers();
 }

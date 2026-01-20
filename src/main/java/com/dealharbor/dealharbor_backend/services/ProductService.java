@@ -92,14 +92,65 @@ public class ProductService {
     }
 
     public PagedResponse<ProductResponse> getAllProducts(int page, int size, String sortBy) {
+        return getAllProductsWithFilters(page, size, sortBy, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * Get all products with optional filters for homepage and browsing
+     */
+    public PagedResponse<ProductResponse> getAllProductsWithFilters(
+            int page, int size, String sortBy,
+            String categoryId, String condition,
+            java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
+            String sellerId, Boolean featured, Boolean hasDiscount) {
+        
         Sort sort = createSort(sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
         
-        // ✅ ONLY SHOW APPROVED PRODUCTS (NOT SOLD ONES)
+        // Get all approved products first
         Page<Product> productPage = productRepository.findByStatusOrderByCreatedAtDesc(
                 ProductStatus.APPROVED, pageable);
         
-        return convertToPagedResponse(productPage);
+        // Apply filters in memory (for simplicity - could be optimized with a dynamic query)
+        List<Product> filteredProducts = productPage.getContent().stream()
+                .filter(p -> categoryId == null || p.getCategory().getId().equals(categoryId))
+                .filter(p -> condition == null || p.getCondition().name().equalsIgnoreCase(condition))
+                .filter(p -> minPrice == null || p.getPrice().compareTo(minPrice) >= 0)
+                .filter(p -> maxPrice == null || p.getPrice().compareTo(maxPrice) <= 0)
+                .filter(p -> sellerId == null || p.getSeller().getId().equals(sellerId))
+                .filter(p -> featured == null || p.getIsFeatured().equals(featured))
+                .filter(p -> hasDiscount == null || !hasDiscount || 
+                        (p.getOriginalPrice() != null && p.getOriginalPrice().compareTo(p.getPrice()) > 0))
+                .collect(Collectors.toList());
+        
+        List<ProductResponse> content = filteredProducts.stream()
+                .map(this::convertToProductResponse)
+                .collect(Collectors.toList());
+        
+        return new PagedResponse<>(
+                content,
+                productPage.getNumber(),
+                productPage.getSize(),
+                filteredProducts.size(),
+                (int) Math.ceil((double) filteredProducts.size() / size),
+                productPage.isFirst(),
+                filteredProducts.size() <= size,
+                false, page > 0
+        );
+    }
+
+    /**
+     * Get products listed within the last N hours (for "Just Listed" section)
+     */
+    public List<ProductResponse> getJustListedProducts(int limit, int hours) {
+        Instant since = Instant.now().minus(hours, ChronoUnit.HOURS);
+        Pageable pageable = PageRequest.of(0, limit);
+        
+        List<Product> products = productRepository.findJustListedProducts(since, pageable);
+        
+        return products.stream()
+                .map(this::convertToProductResponse)
+                .collect(Collectors.toList());
     }
 
     public PagedResponse<ProductResponse> getProductsByCategory(String categoryId, int page, int size, String sortBy) {
@@ -650,6 +701,13 @@ public class ProductService {
             mostPopularCategoryCount = ((Number) stat[1]).longValue();
         }
         
+        // Calculate average savings percent
+        Double avgSavings = productRepository.calculateAverageDiscountPercent();
+        int avgSavingsPercent = avgSavings != null ? avgSavings.intValue() : 0;
+        
+        // Count successful sales (products with SOLD status)
+        long successfulSales = productRepository.countByStatus(ProductStatus.SOLD);
+        
         return HomepageStatsResponse.builder()
                 .totalProducts(totalProducts)
                 .totalActiveProducts(totalActiveProducts)
@@ -661,6 +719,8 @@ public class ProductService {
                 .productsAddedThisWeek(productsAddedThisWeek)
                 .mostPopularCategory(mostPopularCategory)
                 .mostPopularCategoryCount(mostPopularCategoryCount)
+                .avgSavingsPercent(avgSavingsPercent)
+                .successfulSales(successfulSales)
                 .build();
     }
 }

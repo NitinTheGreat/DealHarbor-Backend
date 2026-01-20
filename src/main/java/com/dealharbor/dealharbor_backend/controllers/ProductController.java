@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -23,8 +24,16 @@ public class ProductController {
     public ResponseEntity<PagedResponse<ProductResponse>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "date_desc") String sortBy) {
-        return ResponseEntity.ok(productService.getAllProducts(page, size, sortBy));
+            @RequestParam(defaultValue = "date_desc") String sortBy,
+            @RequestParam(required = false) String categoryId,
+            @RequestParam(required = false) String condition,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String sellerId,
+            @RequestParam(required = false) Boolean featured,
+            @RequestParam(required = false) Boolean hasDiscount) {
+        return ResponseEntity.ok(productService.getAllProductsWithFilters(
+                page, size, sortBy, categoryId, condition, minPrice, maxPrice, sellerId, featured, hasDiscount));
     }
 
     @GetMapping("/category/{categoryId}")
@@ -60,6 +69,13 @@ public class ProductController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size) {
         return ResponseEntity.ok(productService.getRecentProducts(page, size));
+    }
+
+    @GetMapping("/just-listed")
+    public ResponseEntity<List<ProductResponse>> getJustListedProducts(
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "24") int hours) {
+        return ResponseEntity.ok(productService.getJustListedProducts(limit, hours));
     }
 
     @GetMapping("/deals")

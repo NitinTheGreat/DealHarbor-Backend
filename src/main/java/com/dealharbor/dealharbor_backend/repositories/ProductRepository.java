@@ -103,4 +103,13 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @Query("SELECT c.name, COUNT(p) FROM Product p JOIN p.category c " +
            "WHERE p.status = 'APPROVED' GROUP BY c.name ORDER BY COUNT(p) DESC")
     List<Object[]> findMostPopularCategory();
+    
+    // Calculate average discount percentage for products with discounts
+    @Query("SELECT COALESCE(AVG((p.originalPrice - p.price) / p.originalPrice * 100), 0) " +
+           "FROM Product p WHERE p.status = 'APPROVED' AND p.originalPrice > 0 AND p.originalPrice > p.price")
+    Double calculateAverageDiscountPercent();
+    
+    // Find products created within the last N hours
+    @Query("SELECT p FROM Product p WHERE p.status = 'APPROVED' AND p.createdAt >= :since ORDER BY p.createdAt DESC")
+    List<Product> findJustListedProducts(@Param("since") Instant since, Pageable pageable);
 }

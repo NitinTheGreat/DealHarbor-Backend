@@ -20,4 +20,8 @@ public class HomepageStatsResponse {
     private long productsAddedThisWeek;
     private String mostPopularCategory;
     private long mostPopularCategoryCount;
+    
+    // New fields for homepage stats bar
+    private int avgSavingsPercent;  // Average discount percentage across products
+    private long successfulSales;    // Count of products with SOLD status
 }
